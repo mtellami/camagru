@@ -1,0 +1,57 @@
+services:
+  db:
+    image: postgres:17-bookworm@sha256:665dc7b37ac52a17e298511414c21d23ffa4e6a6ef6225b3e5d59c7afb35e994
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  mailpit:
+    image: axllent/mailpit:v1.28.2@sha256:28a161f4a39c70671d0fb771a6e7a3abe6d2144c0e2a595ff72767ab63cd14f6
+    ports:
+      - '127.0.0.1:${MAILPIT_PORT:-8025}:8025'
+  migrate:
+    build: .
+    env_file: .env
+    command: [php, bin/migrate.php]
+    depends_on:
+      db:
+        condition: service_healthy
+  web:
+    build: .
+    env_file: .env
+    ports:
+      - '127.0.0.1:${APP_PORT:-8080}:80'
+    volumes:
+      - media:/var/www/html/storage
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+    healthcheck:
+      # Connection refusal is an expected probe result while Apache starts.
+      test: [CMD, php, -r, '$$body=@file_get_contents("http://localhost/health",false,stream_context_create(["http"=>["timeout"=>2]]));exit($$body && (json_decode($$body,true)["ok"]??false) ? 0 : 1);']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  worker:
+    build: .
+    user: www-data
+    env_file: .env
+    command: [php, bin/worker.php]
+    restart: unless-stopped
+    volumes:
+      - media:/var/www/html/storage
+    depends_on:
+      web:
+        condition: service_healthy
+volumes:
+  database:
+  media:

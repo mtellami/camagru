@@ -1,0 +1,14 @@
+{
+  "name": "camagru-tooling",
+  "private": true,
+  "description": "Development checks only. The application ships no JavaScript dependencies.",
+  "scripts": {
+    "lint": "node tests/lint.mjs",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.58.2",
+    "acorn": "8.15.0"
+  }
+}
