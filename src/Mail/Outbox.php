@@ -49,7 +49,7 @@ final class Outbox
                 $send = $send && (bool) Database::query("SELECT 1 FROM users u JOIN photos p ON p.user_id=u.id JOIN comments c ON c.photo_id=p.id WHERE c.id=? AND u.notify_comments=TRUE AND p.state='ready'", [$job['comment_id']])->fetchColumn();
             }
             if ($send) {
-                $from = Config::get('MAIL_FROM', 'hello@camagru.local');
+                $from = Config::get('MAIL_FROM', 'Camagru Accounts <no-reply@camagru.app>');
                 if (preg_match('/[\r\n]/', $from . $data['to'] . $data['subject'])) { throw new \RuntimeException('Invalid email headers.'); }
                 $headers = ['From' => $from, 'MIME-Version' => '1.0', 'Content-Type' => 'text/plain; charset=UTF-8', 'Content-Transfer-Encoding' => 'base64'];
                 if (!mail($data['to'], '=?UTF-8?B?' . base64_encode($data['subject']) . '?=', chunk_split(base64_encode($data['body'])), $headers)) { throw new \RuntimeException('SMTP delivery failed.'); }
