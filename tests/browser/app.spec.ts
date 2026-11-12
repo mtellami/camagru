@@ -27,6 +27,31 @@ async function register(page: Page, request: APIRequestContext, username: string
   await page.getByLabel('Confirm password').fill(password);
   await page.getByRole('button', { name: 'Create your account' }).click();
   await expect(page).toHaveURL(/\/login$/);
+  const csrf = await page.locator('meta[name="csrf-token"]').getAttribute('content');
+  const invalid = await page.request.post('/login', {
+    headers: { Accept: 'application/json', 'X-CSRF-Token': csrf! },
+    form: { username, password: 'An incorrect password 99999' }
+  });
+  expect(invalid.status()).toBe(422);
+  expect((await invalid.json()).error.message).toBe('The username or password is incorrect.');
+  await page.getByLabel('Username', { exact: true }).fill(username);
+  await page.getByLabel('Password', { exact: true }).fill('An incorrect password 99999');
+  const failedLogin = page.waitForResponse(response => new URL(response.url()).pathname === '/login' && response.request().method() === 'POST');
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  expect((await failedLogin).status()).toBe(303);
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole('alert')).toContainText('The username or password is incorrect.');
+  await expect(page.getByRole('alert').getByRole('link', { name: 'Reset your password' })).toHaveAttribute('href', '/forgot');
+  await expect(page.getByLabel('Username', { exact: true })).toHaveValue(username);
+  await expect(page.getByLabel('Password', { exact: true })).toHaveValue('');
+  await page.getByLabel('Password', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole('alert')).toContainText('Confirm your email first.');
+  await expect(page.getByRole('alert').getByRole('link', { name: 'resend your confirmation email' })).toHaveAttribute('href', '/resend');
+  await expect(page.getByLabel('Password', { exact: true })).toHaveValue('');
+  await page.reload();
+  await expect(page.getByRole('alert')).toHaveCount(0);
   const confirmation = await emailLink(request, email, 'confirm your email');
   await page.goto(confirmation);
   await page.getByRole('button', { name: 'Confirm email' }).click();

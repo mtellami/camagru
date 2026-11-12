@@ -47,7 +47,9 @@ final class App
             if ($path === '/verify' && preg_match('/\A[a-f0-9]{64}\z/', $token)) {
                 $purpose = Database::query('SELECT purpose FROM account_tokens WHERE token_hash=?', [hash('sha256', $token)])->fetchColumn() ?: 'verify';
             }
-            Http::render('auth', ['title' => 'Your account', 'mode' => substr($path, 1), 'token' => $token, 'purpose' => $purpose]);
+            $loginError = $path === '/login' ? ($_SESSION['login_error'] ?? null) : null;
+            if ($path === '/login') { unset($_SESSION['login_error']); }
+            Http::render('auth', ['title' => 'Your account', 'mode' => substr($path, 1), 'token' => $token, 'purpose' => $purpose, 'loginError' => $loginError]);
         }
         if ($path === '/settings') { Auth::requireUser(); Http::render('settings', ['title' => 'Your settings']); }
         if ($path === '/editor') {
