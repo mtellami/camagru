@@ -26,16 +26,12 @@ foreach ($snapshot['files'] as $name => $hash) {
     if (!is_file(Config::storage() . '/media/' . $name) || hash_file('sha256',Config::storage() . '/media/' . $name) !== $hash) { throw new RuntimeException('Media changed during restart.'); }
 }
 $id = Database::query('SELECT id FROM users ORDER BY id LIMIT 1')->fetchColumn();
-if (!$id) { throw new RuntimeException('Run browser tests before the worker recovery check.'); }
+if (!$id) { throw new RuntimeException('Run browser tests before the email recovery check.'); }
 $event = 'operations:' . bin2hex(random_bytes(16));
-Outbox::queue($event,(int) $id,'operations@example.test','Camagru worker recovery check','Local infrastructure check.');
-$deadline = time() + 25;
-do {
-    if (Database::query('SELECT sent_at FROM email_outbox WHERE event_key=?',[$event])->fetchColumn()) {
-        unlink($snapshotPath);
-        echo "Database, media persistence, and email-worker recovery checks passed.\n";
-        exit;
-    }
-    usleep(250000);
-} while (time() < $deadline);
-throw new RuntimeException('The worker did not recover after database restart.');
+Outbox::queue($event,(int) $id,'operations@example.test','Camagru email delivery check','Local infrastructure check.');
+file_get_contents('http://nginx/');
+if (!Database::query('SELECT sent_at FROM email_outbox WHERE event_key=?',[$event])->fetchColumn()) {
+    throw new RuntimeException('The page request did not deliver queued mail after restart.');
+}
+unlink($snapshotPath);
+echo "Database, media persistence, and request-driven email delivery checks passed.\n";

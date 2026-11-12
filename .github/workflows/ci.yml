@@ -29,7 +29,7 @@ jobs:
       - name: Configure local test environment
         run: php tools/scripts/setup.php && docker compose config --quiet
       - name: Build and start
-        run: docker compose up --build -d --wait --wait-timeout 180
+        run: docker compose up --build -d --wait --wait-timeout 180 --remove-orphans
       - name: PHP tests
         run: docker compose exec -T web php tests/php/run.php
       - name: NGINX routing and upload limits
@@ -44,7 +44,7 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium firefox
       - name: Browser tests
         run: pnpm test
-      - name: Verify repeated startup and private storage
+      - name: Verify restart persistence, request-driven email, and private storage
         run: |
           docker compose run --rm migrate
           docker compose exec -T web php tests/php/operations.php snapshot

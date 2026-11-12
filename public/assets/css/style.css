@@ -6,3 +6,5 @@
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
 
 .login-error{padding:14px 16px;border:1px solid #d7a392;border-radius:5px;background:#fcf0e9;color:#873f2f;font-size:12px}.login-error p{margin:0 0 8px}.login-error a{font-weight:600}
+
+.home-hero{min-height:calc(100vh - 204px);display:flex;flex-direction:column;justify-content:center}.gallery-page{padding-top:48px}.gallery-page .section-heading h1{font-size:42px;letter-spacing:-1px;margin:0}@media(max-width:700px){.gallery-page{padding-top:32px}.gallery-page .section-heading h1{font-size:32px}}

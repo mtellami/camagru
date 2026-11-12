@@ -1,2 +1,2 @@
 <?php use Camagru\Http\Http; ?>
-<section class="empty-state error-page"><span aria-hidden="true">↺</span><span class="eyebrow">LET’S TRY THAT AGAIN</span><h1>A little interruption.</h1><p><?= Http::escape($message) ?></p><div class="error-actions"><button type="button" class="button" id="go-back">Go back</button><a class="button button-outline" href="/">Back to the gallery</a></div></section>
+<section class="empty-state error-page"><span aria-hidden="true">↺</span><span class="eyebrow">LET’S TRY THAT AGAIN</span><h1>A little interruption.</h1><p><?= Http::escape($message) ?></p><div class="error-actions"><button type="button" class="button" id="go-back">Go back</button><a class="button button-outline" href="/gallery">Back to the gallery</a></div></section>

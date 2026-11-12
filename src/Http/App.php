@@ -28,7 +28,8 @@ final class App
             Database::query('SELECT 1');
             Http::json(['ok' => true]);
         }
-        if ($path === '/' || $path === '/gallery' || $path === '/editor/photos') {
+        if ($path === '/') { Http::render('home', ['title' => 'Home']); }
+        if ($path === '/gallery' || $path === '/editor/photos') {
             $owner = $path === '/editor/photos' ? (int) Auth::requireUser()['id'] : null;
             $result = $this->gallery($owner);
             if (Http::jsonRequested()) { Http::json(['ok' => true, 'data' => $result]); }

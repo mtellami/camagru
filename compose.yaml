@@ -59,20 +59,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
-  worker:
-    build:
-      context: .
-      dockerfile: tools/docker/Dockerfile
-      target: app
-    user: www-data
-    env_file: .env
-    command: [php, tools/scripts/worker.php]
-    restart: unless-stopped
-    volumes:
-      - media:/var/www/html/storage
-    depends_on:
-      web:
-        condition: service_healthy
 volumes:
   database:
   media:

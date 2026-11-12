@@ -72,12 +72,27 @@ test('Public pages are responsive, private pages reject visitors, and fallback A
   page.on('console', message => errors.push(message.text()));
   await page.goto('/');
   await expect(page.getByRole('heading', { name: /Life looks better/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Join the fun' })).toHaveAttribute('href', '/register');
+  await expect(page.locator('#gallery-grid')).toHaveCount(0);
+  const navigation = page.getByRole('navigation', { name: 'Main navigation' });
+  await expect(navigation.getByRole('link', { name: 'Sign in', exact: true })).toHaveClass(/\bbutton\b/);
+  await expect(navigation.locator('a[href="/register"], a[href="/editor"]')).toHaveCount(0);
+  await expect(navigation.getByRole('link', { name: 'Home', exact: true })).toHaveAttribute('aria-current', 'page');
   await page.setViewportSize({ width: 375, height: 812 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await navigation.getByRole('link', { name: 'Gallery', exact: true }).click();
+  await expect(page.getByRole('heading', { name: /The community roll/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Life looks better/ })).toHaveCount(0);
+  await expect(navigation.getByRole('link', { name: 'Gallery', exact: true })).toHaveAttribute('aria-current', 'page');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.goto('/editor');
   await expect(page).toHaveURL(/\/login$/);
   await page.goto('/settings');
   await expect(page).toHaveURL(/\/login$/);
+  await expect(page.locator('#toast')).toHaveText('Please sign in to continue.');
+  await expect(page.locator('#toast')).toBeVisible();
+  await expect(page.locator('main .flash')).toHaveCount(0);
+  await expect(page.locator('#toast')).toBeHidden({ timeout: 8000 });
   expect(errors).toEqual([]);
 });
 
@@ -86,6 +101,12 @@ test('Account lifecycle, camera and upload compositing, GIF, interactions, owner
   const suffix = `${testInfo.project.name.slice(0,2)}${Date.now().toString(36)}`;
   const username = `owner_${suffix}`;
   let email = await register(page, request, username);
+  await page.goto('/');
+  await expect(page.getByRole('link', { name: 'Make a moment' })).toHaveAttribute('href', '/editor');
+  await expect(page.getByRole('link', { name: 'Join the fun' })).toHaveCount(0);
+  await expect(page.locator('#gallery-grid')).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Sign out' })).toHaveClass(/\bbutton\b/);
+  await page.getByRole('link', { name: 'Make a moment' }).click();
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => errors.push(message.text()));
@@ -192,7 +213,7 @@ test('Account lifecycle, camera and upload compositing, GIF, interactions, owner
   await settingsPassword.getByLabel('New password', { exact: true }).fill('An intermediate password 54321');
   await settingsPassword.getByLabel('Confirm new password').fill('An intermediate password 54321');
   await settingsPassword.getByRole('button', { name: 'Update password' }).click();
-  await expect(page.locator('.flash')).toContainText('Other sessions');
+  await expect(page.locator('#toast')).toContainText('Other sessions');
 
   const oldSession = await browser.newContext();
   const oldPage = await oldSession.newPage();

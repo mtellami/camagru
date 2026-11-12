@@ -8,6 +8,8 @@
         window.clearTimeout(toastTimer);
         toastTimer = window.setTimeout(function () { box.hidden = true; }, 5500);
     }
+    var initialToast = document.getElementById('toast');
+    if (initialToast && !initialToast.hidden) { notify(initialToast.textContent); }
     function token() { return document.querySelector('meta[name="csrf-token"]').getAttribute('content'); }
     function randomKey() {
         var bytes = new Uint8Array(16);

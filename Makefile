@@ -1,7 +1,7 @@
 .PHONY: up down test lint logs reset
 up:
 	php tools/scripts/setup.php
-	docker compose up --build -d --wait
+	docker compose up --build -d --wait --remove-orphans
 	docker compose exec -T web php -r 'echo "Camagru: ".getenv("APP_URL")." | Inbox: http://localhost:".getenv("MAILPIT_PORT").PHP_EOL;'
 down:
 	docker compose down

@@ -23,21 +23,20 @@
 <header class="site-header">
     <a class="brand" href="/" aria-label="Camagru home"><span class="brand-mark" aria-hidden="true">c.</span>camagru<span class="brand-dot">®</span></a>
     <nav aria-label="Main navigation">
-        <a href="/gallery" <?= in_array(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), ['/','/gallery'], true) ? 'aria-current="page"' : '' ?>>Gallery</a>
+        <a href="/" <?= parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) === '/' ? 'aria-current="page"' : '' ?>>Home</a>
+        <a href="/gallery" <?= parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) === '/gallery' ? 'aria-current="page"' : '' ?>>Gallery</a>
         <?php if ($user): ?>
             <a href="/settings">Settings</a>
-            <form method="post" action="/logout" class="inline-form"><input type="hidden" name="csrf" value="<?= Http::escape($_SESSION['csrf']) ?>"><button class="text-button" type="submit">Sign out</button></form>
-            <a class="button button-small" href="/editor">Create <span aria-hidden="true">↗</span></a>
+            <form method="post" action="/logout" class="inline-form"><input type="hidden" name="csrf" value="<?= Http::escape($_SESSION['csrf']) ?>"><button class="button button-small" type="submit">Sign out</button></form>
         <?php else: ?>
-            <a href="/login">Sign in</a><a class="button button-small" href="/register">Join the fun <span aria-hidden="true">↗</span></a>
+            <a class="button button-small" href="/login">Sign in</a>
         <?php endif; ?>
     </nav>
 </header>
 <main id="main">
-    <?php if ($flash): ?><div class="flash" role="status"><?= Http::escape($flash) ?></div><?php endif; ?>
     <?= $content ?>
 </main>
 <footer class="site-footer"><a class="footer-brand" href="/">camagru.</a><span>Ordinary moments. A little more playful.</span><span>Made for the joy of it <span aria-hidden="true">✳</span></span></footer>
-<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite" <?= $flash ? '' : 'hidden' ?>><?= Http::escape($flash ?? '') ?></div>
 </body>
 </html>
