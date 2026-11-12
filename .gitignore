@@ -23,3 +23,5 @@ Thumbs.db
 *.swo
 *~
 *.log
+
+tests/.artifacts/

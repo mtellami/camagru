@@ -6,11 +6,11 @@ RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.l
     && a2enmod rewrite headers \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /var/www/html
-COPY docker/apache/vhost.conf /etc/apache2/sites-available/000-default.conf
-COPY docker/php/php.ini /usr/local/etc/php/conf.d/camagru.ini
-COPY docker/mail/msmtprc /etc/msmtprc
-COPY docker/apache/log.sh /usr/local/bin/camagru-apache-log
+COPY tools/docker/apache/vhost.conf /etc/apache2/sites-available/000-default.conf
+COPY tools/docker/php/php.ini /usr/local/etc/php/conf.d/camagru.ini
+COPY tools/docker/mail/msmtprc /etc/msmtprc
+COPY tools/docker/apache/log.sh /usr/local/bin/camagru-apache-log
 COPY . .
-RUN chmod 755 /usr/local/bin/camagru-apache-log && php scripts/overlays.php && mkdir -p storage/media storage/tmp storage/sessions storage/logs \
+RUN chmod 755 /usr/local/bin/camagru-apache-log && php tools/scripts/overlays.php && mkdir -p storage/media storage/tmp storage/sessions storage/logs \
     && chown -R www-data:www-data storage
 CMD ["apache2-foreground"]

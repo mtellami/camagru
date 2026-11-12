@@ -19,16 +19,16 @@ services:
   migrate:
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: tools/docker/Dockerfile
     env_file: .env
-    command: [php, scripts/migrate.php]
+    command: [php, tools/scripts/migrate.php]
     depends_on:
       db:
         condition: service_healthy
   web:
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: tools/docker/Dockerfile
     env_file: .env
     ports:
       - '127.0.0.1:${APP_PORT:-8080}:80'
@@ -48,10 +48,10 @@ services:
   worker:
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: tools/docker/Dockerfile
     user: www-data
     env_file: .env
-    command: [php, scripts/worker.php]
+    command: [php, tools/scripts/worker.php]
     restart: unless-stopped
     volumes:
       - media:/var/www/html/storage

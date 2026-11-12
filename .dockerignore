@@ -18,3 +18,5 @@ coverage
 **/*.pyc
 *.log
 .DS_Store
+
+tests/.artifacts

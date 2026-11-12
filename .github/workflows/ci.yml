@@ -27,7 +27,7 @@ jobs:
       - name: Scan committed history for secrets
         run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.24.3@sha256:e1b35e12a8c6fa8901f060459cfb6b2fc4c484d3afbe3b029733a3bbfab07055 git /repo --redact --no-banner
       - name: Configure local test environment
-        run: php scripts/setup.php && docker compose config --quiet
+        run: php tools/scripts/setup.php && docker compose config --quiet
       - name: Build and start
         run: docker compose up --build -d --wait --wait-timeout 180
       - name: PHP tests
@@ -58,7 +58,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: browser-screenshots
-          path: test-results/**/*.png
+          path: tests/.artifacts/results/**/*.png
           retention-days: 3
       - name: Clean up
         if: always()

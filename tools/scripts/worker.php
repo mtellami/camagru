@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-require dirname(__DIR__) . '/src/bootstrap.php';
+require dirname(__DIR__, 2) . '/src/bootstrap.php';
 use Camagru\Database\Database;
 use Camagru\Media\Images;
 use Camagru\Mail\Outbox;

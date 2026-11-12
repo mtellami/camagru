@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 function walk(path) {
   return readdirSync(path, { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? walk(`${path}/${entry.name}`) : [`${path}/${entry.name}`]);
 }
-const files = ['src', 'scripts', 'resources', 'public', 'tests'].flatMap(walk);
+const files = ['src', 'tools', 'public', 'tests'].flatMap(walk);
 for (const file of files.filter(file => file.endsWith('.php'))) execFileSync('php', ['-l', file], { stdio: 'pipe' });
 parse(readFileSync('public/assets/js/app.js', 'utf8'), { ecmaVersion: 5 });
 const manifest = JSON.parse(readFileSync('package.json', 'utf8'));

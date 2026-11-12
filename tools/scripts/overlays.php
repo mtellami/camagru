@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-$directory = dirname(__DIR__) . '/public/assets/images/overlays';
+$directory = dirname(__DIR__, 2) . '/public/assets/images/overlays';
 if (!is_dir($directory)) { mkdir($directory, 0755, true); }
 $names = ['orbit', 'bloom', 'confetti', 'postcard', 'sunshine', 'midnight'];
 foreach ($names as $index => $name) {

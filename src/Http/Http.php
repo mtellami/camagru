@@ -47,9 +47,9 @@ final class Http
         $flash = $_SESSION['flash'] ?? null;
         unset($_SESSION['flash']);
         ob_start();
-        require Config::root() . '/resources/views/' . $template . '.php';
+        require Config::root() . '/src/views/' . $template . '.php';
         $content = ob_get_clean();
-        require Config::root() . '/resources/views/layout.php';
+        require Config::root() . '/src/views/layout.php';
         exit;
     }
 

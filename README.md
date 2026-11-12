@@ -5,25 +5,19 @@ A small photo studio and public community gallery. Native PHP, PostgreSQL, HTML,
 ## Project structure
 
 ```text
-config/                 Browser test configuration
-database/migrations/    Versioned SQL migrations
-docker/                 Dockerfile and Apache, PHP, and mail configuration
-public/                 Web entry point and browser-accessible files
-  assets/css/           Stylesheets
-  assets/js/            Browser JavaScript
-  assets/images/        Icons and transparent overlays
-resources/views/        PHP page templates and partials
-scripts/                Setup, migrations, overlay generation, and worker commands
-src/                    PHP application code
-  Database/             Database connections and transactions
-  Http/                 Request handling, responses, and HTTP errors
+src/                    PHP application and page templates
+  Database/             Database access and SQL migrations
+  Http/                 Requests, responses, and HTTP errors
   Mail/                 Encrypted email outbox
   Media/                Image compositing and GIF assembly
-  Security/             Authentication, validation, CSRF, and rate limits
-tests/
-  browser/              Chromium and Firefox scenarios
-  php/                  PHP, container, and restart checks
-  tools/                Linting and independent GIF verification
+  Security/             Authentication, CSRF, and rate limits
+  views/                Page templates and partials
+public/                 Web entry point, CSS, JavaScript, and images
+tests/                  PHP checks, browser scenarios, and test tooling
+  .artifacts/           Generated reports and screenshots (ignored)
+tools/
+  docker/               Dockerfile and Apache, PHP, and mail configuration
+  scripts/              Setup, migrations, overlay generation, and worker
 ```
 
 The root contains the README, Compose and Make entry points, dependency manifests, and local configuration templates. Runtime data is kept in Docker volumes.
@@ -74,13 +68,13 @@ The worker polls the encrypted database outbox. Successful registration, account
 Transient failures retry up to five times with increasing delays. Delivery is at least once: an interruption after SMTP acceptance can produce a duplicate message. Expired account links are discarded. Request a fresh link from `/resend` or `/forgot`.
 
 ```sh
-docker compose exec worker php scripts/worker.php --once
-docker compose exec worker php scripts/worker.php --retry-failed
+docker compose exec worker php tools/scripts/worker.php --once
+docker compose exec worker php tools/scripts/worker.php --retry-failed
 ```
 
 The same worker removes abandoned staged media, deleted images, expired rate-limit records, and old account tokens. Deletion hides a creation immediately; physical removal follows during maintenance. Error diagnostics are private files under `storage/logs/`, accessible with `docker compose exec web sh`.
 
-SMTP is intentionally a local Mailpit relay, configured by `docker/mail/msmtprc`; this repository does not configure an external email provider. `MAIL_FROM` controls the application sender. Mailpit host and port are infrastructure settings in that file.
+SMTP is intentionally a local Mailpit relay, configured by `tools/docker/mail/msmtprc`; this repository does not configure an external email provider. `MAIL_FROM` controls the application sender. Mailpit host and port are infrastructure settings in that file.
 
 ## Verification
 
