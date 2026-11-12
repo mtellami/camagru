@@ -32,6 +32,8 @@ jobs:
         run: docker compose up --build -d --wait --wait-timeout 180
       - name: PHP tests
         run: docker compose exec -T web php tests/php/run.php
+      - name: NGINX routing and upload limits
+        run: node tests/tools/http.mjs
       - name: Verify GIF with independent decoder
         run: |
           docker compose cp web:/tmp/camagru-test.gif /tmp/camagru-test.gif

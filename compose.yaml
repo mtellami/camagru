@@ -20,6 +20,7 @@ services:
     build:
       context: .
       dockerfile: tools/docker/Dockerfile
+      target: app
     env_file: .env
     command: [php, tools/scripts/migrate.php]
     depends_on:
@@ -29,9 +30,8 @@ services:
     build:
       context: .
       dockerfile: tools/docker/Dockerfile
+      target: app
     env_file: .env
-    ports:
-      - '127.0.0.1:${APP_PORT:-8080}:80'
     volumes:
       - media:/var/www/html/storage
     depends_on:
@@ -40,8 +40,22 @@ services:
       mailpit:
         condition: service_started
     healthcheck:
-      # Connection refusal is an expected probe result while Apache starts.
-      test: [CMD, php, -r, '$$body=@file_get_contents("http://localhost/health",false,stream_context_create(["http"=>["timeout"=>2]]));exit($$body && (json_decode($$body,true)["ok"]??false) ? 0 : 1);']
+      test: [CMD, php, -r, '$$socket=@fsockopen("127.0.0.1",9000);exit($$socket ? 0 : 1);']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  nginx:
+    build:
+      context: .
+      dockerfile: tools/docker/Dockerfile
+      target: nginx
+    ports:
+      - '127.0.0.1:${APP_PORT:-8080}:80'
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, wget, --quiet, --tries=1, --timeout=2, --output-document=/dev/null, http://127.0.0.1/health]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -49,6 +63,7 @@ services:
     build:
       context: .
       dockerfile: tools/docker/Dockerfile
+      target: app
     user: www-data
     env_file: .env
     command: [php, tools/scripts/worker.php]

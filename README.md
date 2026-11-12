@@ -16,11 +16,13 @@ public/                 Web entry point, CSS, JavaScript, and images
 tests/                  PHP checks, browser scenarios, and test tooling
   .artifacts/           Generated reports and screenshots (ignored)
 tools/
-  docker/               Dockerfile and Apache, PHP, and mail configuration
+  docker/               Dockerfile and NGINX, PHP-FPM, and mail configuration
   scripts/              Setup, migrations, overlay generation, and worker
 ```
 
 The root contains the README, Compose and Make entry points, dependency manifests, and local configuration templates. Runtime data is kept in Docker volumes.
+
+NGINX serves static assets and forwards application requests to PHP-FPM over the internal Docker network. The `nginx` service exposes HTTP; `web` runs PHP-FPM and PHP checks. Uploaded media stays in the private storage volume and is served through the application.
 
 ## Run locally
 
@@ -72,7 +74,7 @@ docker compose exec worker php tools/scripts/worker.php --once
 docker compose exec worker php tools/scripts/worker.php --retry-failed
 ```
 
-The same worker removes abandoned staged media, deleted images, expired rate-limit records, and old account tokens. Deletion hides a creation immediately; physical removal follows during maintenance. Error diagnostics are private files under `storage/logs/`, accessible with `docker compose exec web sh`.
+The same worker removes abandoned staged media, deleted images, expired rate-limit records, and old account tokens. Deletion hides a creation immediately; physical removal follows during maintenance. PHP-FPM and worker diagnostics are private files under `storage/logs/`, accessible with `docker compose exec web sh`. NGINX diagnostics are available through `docker compose logs nginx`.
 
 SMTP is intentionally a local Mailpit relay, configured by `tools/docker/mail/msmtprc`; this repository does not configure an external email provider. `MAIL_FROM` controls the application sender. Mailpit host and port are infrastructure settings in that file.
 
@@ -83,6 +85,7 @@ Browser checks require Node.js 22 or newer and pnpm (CI uses Node.js 22 and pnpm
 ```sh
 pnpm install --frozen-lockfile
 pnpm lint
+node tests/tools/http.mjs
 pnpm exec playwright install --with-deps chromium firefox
 pnpm test
 ```
@@ -90,6 +93,7 @@ pnpm test
 For custom ports:
 
 ```sh
+TEST_URL=http://localhost:8088 node tests/tools/http.mjs
 TEST_URL=http://localhost:8088 MAILPIT_URL=http://localhost:8028 pnpm test
 ```
 
@@ -105,7 +109,7 @@ python3 -m venv /tmp/camagru-tools
 /tmp/camagru-tools/bin/python tests/tools/decode-gif.py /tmp/camagru-test.gif
 ```
 
-GitHub Actions runs syntax checks, secret scanning, PHP tests, independent GIF decoding, Chromium/Firefox tests, and container privacy checks. Restart checks verify that users and image files persist and that the email worker reconnects after a database restart. Only failure screenshots are uploaded. CI uses no deployment secrets and publishes nothing.
+GitHub Actions runs syntax checks, secret scanning, PHP tests, NGINX routing and upload limits, independent GIF decoding, Chromium/Firefox tests, and container privacy checks. Restart checks verify that users and image files persist and that the email worker reconnects after a database restart. Only failure screenshots are uploaded. CI uses no deployment secrets and publishes nothing.
 
 ## Evaluation checklist
 
@@ -121,4 +125,4 @@ GitHub Actions runs syntax checks, secret scanning, PHP tests, independent GIF d
 - Check GIF frames with an independent decoder and verify AJAX failure/retry behavior.
 - Test 375 px, tablet, and desktop layouts; keyboard focus, labels, and errors.
 - Manually verify Firefox 41 and Chrome 46 in an isolated local environment. ES5 syntax and API fallbacks support these targets; current-engine CI does not certify the old engines.
-- Inspect browser console and private error logs after normal flows. Apache/worker lifecycle output should remain quiet.
+- Inspect browser console and private error logs after normal flows. NGINX/PHP-FPM/worker lifecycle output should remain quiet.
