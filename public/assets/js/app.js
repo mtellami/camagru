@@ -47,6 +47,13 @@
         if (typeof text !== 'undefined') { node.textContent = text; }
         return node;
     }
+    function svgIcon(path, className) {
+        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
+        if (className) { svg.setAttribute('class', className); }
+        var shape = document.createElementNS('http://www.w3.org/2000/svg', 'path'); shape.setAttribute('d', path); svg.appendChild(shape); return svg;
+    }
+    var heartPath = 'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z';
     function card(photo, history) {
         var link = element('a', history ? 'history-item' : 'photo-link');
         link.href = '/photos/' + photo.id;
@@ -61,8 +68,20 @@
         if (photo.kind === 'gif') { link.appendChild(element('span', 'gif-badge', 'GIF')); }
         var meta = element('div', 'card-meta');
         meta.appendChild(element('span', 'author', photo.username));
-        var counts = element('a', 'card-counts', '♡ ' + photo.likes + '  ◌ ' + photo.comments);
+        if (document.body.classList.contains('authenticated')) {
+            var likeForm = element('form', 'card-like-form');
+            likeForm.method = 'post'; likeForm.action = '/photos/' + photo.id + '/' + (photo.liked ? 'unlike' : 'like');
+            likeForm.setAttribute('data-ajax', 'like');
+            var csrf = element('input'); csrf.type = 'hidden'; csrf.name = 'csrf'; csrf.value = token(); likeForm.appendChild(csrf);
+            var likeButton = element('button'); likeButton.type = 'submit'; likeButton.setAttribute('aria-pressed', photo.liked ? 'true' : 'false'); likeButton.setAttribute('aria-label', (photo.liked ? 'Unlike' : 'Like') + ' this photo'); likeButton.appendChild(svgIcon(heartPath)); likeForm.appendChild(likeButton); article.appendChild(likeForm);
+        } else {
+            var loginLike = element('a', 'card-like-form card-like-link'); loginLike.href = '/login'; loginLike.setAttribute('aria-label', 'Sign in to like this photo'); loginLike.appendChild(svgIcon(heartPath)); article.appendChild(loginLike);
+        }
+        var counts = element('a', 'card-counts');
         counts.href = link.href;
+        var likeCount = element('span', 'count-item'); likeCount.appendChild(svgIcon(heartPath)); likeCount.appendChild(document.createTextNode(photo.likes));
+        var commentCount = element('span', 'count-item'); commentCount.appendChild(svgIcon('M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-6.5A7.5 7.5 0 0 1 10.5 7H13a7 7 0 0 1 7 4.5Z')); commentCount.appendChild(document.createTextNode(photo.comments));
+        counts.appendChild(likeCount); counts.appendChild(commentCount);
         meta.appendChild(counts); article.appendChild(meta);
         return article;
     }
@@ -81,7 +100,10 @@
                 form.action = form.action.replace(/\/(like|unlike)$/, data.liked ? '/unlike' : '/like');
                 var button = form.querySelector('button');
                 button.setAttribute('aria-pressed', data.liked ? 'true' : 'false');
-                button.textContent = (data.liked ? '♥ ' : '♡ ') + data.count + ' likes';
+                if (button.closest('.card-like-form')) {
+                    button.replaceChildren(svgIcon(heartPath));
+                    button.setAttribute('aria-label', (data.liked ? 'Unlike' : 'Like') + ' this photo');
+                } else { button.textContent = (data.liked ? '♥ ' : '♡ ') + data.count + ' likes'; }
             } else if (action === 'comment') {
                 if (data.comment) {
                     var comment = element('article', 'comment');
@@ -96,6 +118,21 @@
                 status(form, 'Your note is posted.', false);
             } else if (action === 'delete') { window.location.assign(data.redirect); }
             else { status(form, data.message, false); }
+        });
+    });
+    document.addEventListener('click', function (event) {
+        var toggle = event.target.closest('.password-visibility');
+        if (!toggle) { return; }
+        var input = toggle.parentElement.querySelector('input');
+        if (!input) { return; }
+        var showing = input.type === 'password';
+        input.type = showing ? 'text' : 'password';
+        toggle.setAttribute('aria-label', showing ? 'Hide password' : 'Show password');
+    });
+    document.querySelectorAll('.settings-sidebar nav a').forEach(function (link) {
+        link.addEventListener('click', function () {
+            document.querySelectorAll('.settings-sidebar nav a').forEach(function (item) { item.removeAttribute('aria-current'); });
+            link.setAttribute('aria-current', 'location');
         });
     });
     var feeds = document.querySelectorAll('.load-more');
@@ -162,16 +199,23 @@
     var gifForm = document.getElementById('gif-form');
     var cameraStatus = document.getElementById('camera-status');
     var capture = document.getElementById('capture-button');
+    var viewfinder = document.getElementById('viewfinder');
     var burst = document.getElementById('gif-burst');
     var framesInput = document.getElementById('frames-input');
     var stream = null;
     var source = '';
-    var overlay = '';
+    var overlay = 'none';
+    var switchSource = document.getElementById('switch-source');
     var previewUrl = null;
     var cameraUrl = null;
     var cameraGeneration = 0;
     function ready() {
         capture.disabled = !(overlay && source);
+        viewfinder.classList.toggle('has-capture', !!source);
+        document.getElementById('source-badge').hidden = !!source;
+        switchSource.hidden = !source;
+        switchSource.replaceChildren(svgIcon(source === 'camera' ? 'M12 16V4m-5 5 5-5 5 5M4 16v4h16v-4' : 'M3 6h13v12H3zM16 10l5-3v10l-5-3'));
+        switchSource.appendChild(document.createTextNode(source === 'camera' ? 'Upload a photo' : 'Turn on camera'));
         burst.disabled = !(overlay && source === 'camera');
         document.getElementById('gif-upload').disabled = !(overlay && framesInput.files && framesInput.files.length >= 2 && framesInput.files.length <= 8);
         document.getElementById('gif-overlay').value = overlay;
@@ -185,9 +229,14 @@
         ready();
     }
     window.addEventListener('pagehide', stopCamera);
-    function cameraFailure() { cameraStatus.textContent = 'Camera unavailable or permission denied. You can upload a photo instead.'; ready(); }
+    switchSource.addEventListener('click', function () {
+        if (source === 'camera') { imageInput.click(); }
+        else { document.getElementById('start-camera').click(); }
+    });
+    function cameraFailure() { cameraStatus.textContent = 'Camera unavailable or permission denied. You can upload a photo instead.'; cameraStatus.classList.add('is-visible'); ready(); }
     document.getElementById('start-camera').addEventListener('click', function () {
         stopCamera();
+        cameraStatus.classList.remove('is-visible');
         var generation = cameraGeneration;
         cameraStatus.textContent = 'Waiting for camera permission…';
         function success(media) {
@@ -224,9 +273,17 @@
         ready();
     });
     Array.prototype.forEach.call(form.querySelectorAll('input[name="overlay"]'), function (radio) {
-        radio.addEventListener('change', function () { overlay = radio.value; overlayPreview.src = '/assets/images/overlays/' + overlay + '.png'; overlayPreview.hidden = false; ready(); });
+        radio.addEventListener('change', function () {
+            overlay = radio.value;
+            overlayPreview.hidden = overlay === 'none';
+            if (overlay === 'none') { overlayPreview.removeAttribute('src'); }
+            else { overlayPreview.src = '/assets/images/overlays/' + overlay + '.png'; }
+            document.getElementById('frame-chip').textContent = 'Frame: ' + radio.parentElement.lastElementChild.textContent;
+            ready();
+        });
     });
     framesInput.addEventListener('change', ready);
+    ready();
     function snapshot(width, height, done) {
         var canvas = document.createElement('canvas');
         canvas.width = width; canvas.height = height;

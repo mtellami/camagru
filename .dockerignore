@@ -5,6 +5,9 @@
 .env
 .env.*
 node_modules
+vendor
+composer.json
+composer.lock
 storage
 test-results
 playwright-report

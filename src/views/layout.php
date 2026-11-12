@@ -15,23 +15,31 @@
     <link rel="canonical" href="<?= Http::escape(Config::url('/photos/' . $photo['id'])) ?>">
     <?php endif; ?>
     <link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/assets/css/style.css">
-    <script src="/assets/js/app.js" defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/style.css?v=4">
+    <link rel="stylesheet" href="/assets/css/redesign.css?v=12">
+    <script src="/assets/js/app.js?v=10" defer></script>
 </head>
-<body>
+<body class="<?= $user ? 'authenticated' : 'guest' ?>">
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header">
     <a class="brand" href="/" aria-label="Camagru home"><span class="brand-mark" aria-hidden="true">c.</span>camagru<span class="brand-dot">®</span></a>
-    <nav aria-label="Main navigation">
+    <nav class="site-nav" aria-label="Main navigation">
         <a href="/" <?= parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) === '/' ? 'aria-current="page"' : '' ?>>Home</a>
         <a href="/gallery" <?= parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) === '/gallery' ? 'aria-current="page"' : '' ?>>Gallery</a>
         <?php if ($user): ?>
-            <a href="/settings">Settings</a>
+            <a href="/settings" <?= parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) === '/settings' ? 'aria-current="page"' : '' ?>>Settings</a>
+        <?php endif; ?>
+    </nav>
+    <div class="header-actions">
+        <?php if ($user): ?>
             <form method="post" action="/logout" class="inline-form"><input type="hidden" name="csrf" value="<?= Http::escape($_SESSION['csrf']) ?>"><button class="button button-small" type="submit">Sign out</button></form>
         <?php else: ?>
             <a class="button button-small" href="/login">Sign in</a>
         <?php endif; ?>
-    </nav>
+    </div>
 </header>
 <main id="main">
     <?= $content ?>

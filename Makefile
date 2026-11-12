@@ -1,4 +1,4 @@
-.PHONY: up down test lint logs reset
+.PHONY: up down test lint format format-check logs reset
 up:
 	php tools/scripts/setup.php
 	docker compose up --build -d --wait --remove-orphans
@@ -10,6 +10,10 @@ test:
 lint:
 	find src tools public tests -name '*.php' -print0 | xargs -0 -n1 php -l
 	node --check public/assets/js/app.js
+format:
+	composer format
+format-check:
+	composer format:check
 logs:
 	docker compose logs --tail=100
 reset:

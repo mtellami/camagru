@@ -3,6 +3,7 @@
 !.env.example
 /storage/
 /node_modules/
+/vendor/
 /test-results/
 /playwright-report/
 /.cache/

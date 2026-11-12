@@ -1,6 +1,6 @@
 <?php use Camagru\Http\Http; ?>
 <section class="gallery-section gallery-page" aria-labelledby="gallery-title">
-    <div class="section-heading"><h1 id="gallery-title">The community roll <span aria-hidden="true">↙</span></h1><span class="muted">Fresh moments, newest first</span></div>
+    <div class="section-heading gallery-heading"><h1 id="gallery-title">The community <em>roll</em></h1><div class="gallery-heading-actions"><span class="fresh-label"><span class="status-dot" aria-hidden="true"></span>Fresh moments, newest first</span><a class="button button-pill gallery-create" href="<?= $user ? '/editor' : '/register' ?>">Make a moment <span aria-hidden="true">↗</span></a></div></div>
     <div class="photo-grid" id="gallery-grid">
         <?php foreach ($photos as $photo): require __DIR__ . '/partials/card.php'; endforeach; ?>
     </div>

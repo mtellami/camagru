@@ -48,3 +48,13 @@ make reset   # Delete local data after typing DELETE to confirm
 ```
 
 Accounts and images are stored in Docker volumes and survive normal restarts. Keep your generated `.env` file, which contains the database credentials and application key.
+
+## PHP formatting
+
+PHP-CS-Fixer is a development tool and does not add a runtime dependency to the app. With Composer installed, run:
+
+```sh
+composer install
+make format       # Apply the configured PHP style
+make format-check # Check formatting without changing files
+```

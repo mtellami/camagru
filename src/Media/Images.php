@@ -36,7 +36,7 @@ final class Images
 
     public static function composite(\GdImage $source, string $overlay, int $width = 1280, int $height = 960): \GdImage
     {
-        if (!isset(self::OVERLAYS[$overlay])) { throw new HttpError(422, 'Select an overlay before capturing.'); }
+        if ($overlay !== 'none' && !isset(self::OVERLAYS[$overlay])) { throw new HttpError(422, 'Select a valid frame or None.'); }
         $canvas = imagecreatetruecolor($width, $height);
         imagefill($canvas, 0, 0, imagecolorallocate($canvas, 246, 243, 235));
         $sw = imagesx($source);
@@ -44,6 +44,7 @@ final class Images
         $cropW = min($sw, $sh * $width / $height);
         $cropH = min($sh, $sw * $height / $width);
         imagecopyresampled($canvas, $source, 0, 0, (int) (($sw - $cropW) / 2), (int) (($sh - $cropH) / 2), $width, $height, (int) $cropW, (int) $cropH);
+        if ($overlay === 'none') { return $canvas; }
         $layer = imagecreatefrompng(Config::root() . '/public/assets/images/overlays/' . $overlay . '.png');
         imagealphablending($canvas, true);
         imagecopyresampled($canvas, $layer, 0, 0, 0, 0, $width, $height, imagesx($layer), imagesy($layer));
@@ -64,7 +65,7 @@ final class Images
 
     public static function publish(int $userId, string $overlay, string $submission, bool $gif): array
     {
-        if (!isset(self::OVERLAYS[$overlay])) { throw new HttpError(422, 'Select an overlay before capturing.'); }
+        if ($overlay !== 'none' && !isset(self::OVERLAYS[$overlay])) { throw new HttpError(422, 'Select a valid frame or None.'); }
         if (!preg_match('/\A[a-f0-9]{32}\z/', $submission)) { throw new HttpError(422, 'Invalid capture request. Reload the editor.'); }
         $previous = Database::query("SELECT * FROM photos WHERE user_id=? AND submission_key=?", [$userId, $submission])->fetch();
         if ($previous) {
