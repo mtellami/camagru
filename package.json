@@ -3,9 +3,9 @@
   "private": true,
   "description": "Development checks only. The application ships no JavaScript dependencies.",
   "scripts": {
-    "lint": "node tests/lint.mjs",
-    "test": "playwright test",
-    "test:ui": "playwright test --ui"
+    "lint": "node tests/tools/lint.mjs",
+    "test": "playwright test --config config/playwright.config.ts",
+    "test:ui": "playwright test --config config/playwright.config.ts --ui"
   },
   "devDependencies": {
     "@playwright/test": "1.58.2",

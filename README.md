@@ -2,6 +2,32 @@
 
 A small photo studio and public community gallery. Native PHP, PostgreSQL, HTML, CSS, and browser JavaScript; no application framework or runtime package dependencies.
 
+## Project structure
+
+```text
+config/                 Browser test configuration
+database/migrations/    Versioned SQL migrations
+docker/                 Dockerfile and Apache, PHP, and mail configuration
+public/                 Web entry point and browser-accessible files
+  assets/css/           Stylesheets
+  assets/js/            Browser JavaScript
+  assets/images/        Icons and transparent overlays
+resources/views/        PHP page templates and partials
+scripts/                Setup, migrations, overlay generation, and worker commands
+src/                    PHP application code
+  Database/             Database connections and transactions
+  Http/                 Request handling, responses, and HTTP errors
+  Mail/                 Encrypted email outbox
+  Media/                Image compositing and GIF assembly
+  Security/             Authentication, validation, CSRF, and rate limits
+tests/
+  browser/              Chromium and Firefox scenarios
+  php/                  PHP, container, and restart checks
+  tools/                Linting and independent GIF verification
+```
+
+The root contains the README, Compose and Make entry points, dependency manifests, and local configuration templates. Runtime data is kept in Docker volumes.
+
 ## Run locally
 
 Requirements: Docker Engine with Compose v2, Make, and PHP CLI for generating local configuration.
@@ -48,13 +74,13 @@ The worker polls the encrypted database outbox. Successful registration, account
 Transient failures retry up to five times with increasing delays. Delivery is at least once: an interruption after SMTP acceptance can produce a duplicate message. Expired account links are discarded. Request a fresh link from `/resend` or `/forgot`.
 
 ```sh
-docker compose exec worker php bin/worker.php --once
-docker compose exec worker php bin/worker.php --retry-failed
+docker compose exec worker php scripts/worker.php --once
+docker compose exec worker php scripts/worker.php --retry-failed
 ```
 
 The same worker removes abandoned staged media, deleted images, expired rate-limit records, and old account tokens. Deletion hides a creation immediately; physical removal follows during maintenance. Error diagnostics are private files under `storage/logs/`, accessible with `docker compose exec web sh`.
 
-SMTP is intentionally a local Mailpit relay, configured by `infra/msmtprc`; this repository does not configure an external email provider. `MAIL_FROM` controls the application sender. Mailpit host and port are infrastructure settings in that file.
+SMTP is intentionally a local Mailpit relay, configured by `docker/mail/msmtprc`; this repository does not configure an external email provider. `MAIL_FROM` controls the application sender. Mailpit host and port are infrastructure settings in that file.
 
 ## Verification
 
@@ -82,7 +108,7 @@ make test
 docker compose cp web:/tmp/camagru-test.gif /tmp/camagru-test.gif
 python3 -m venv /tmp/camagru-tools
 /tmp/camagru-tools/bin/pip install Pillow==12.1.0
-/tmp/camagru-tools/bin/python tests/decode-gif.py /tmp/camagru-test.gif
+/tmp/camagru-tools/bin/python tests/tools/decode-gif.py /tmp/camagru-test.gif
 ```
 
 GitHub Actions runs syntax checks, secret scanning, PHP tests, independent GIF decoding, Chromium/Firefox tests, and container privacy checks. Restart checks verify that users and image files persist and that the email worker reconnects after a database restart. Only failure screenshots are uploaded. CI uses no deployment secrets and publishes nothing.
@@ -102,5 +128,3 @@ GitHub Actions runs syntax checks, secret scanning, PHP tests, independent GIF d
 - Test 375 px, tablet, and desktop layouts; keyboard focus, labels, and errors.
 - Manually verify Firefox 41 and Chrome 46 in an isolated local environment. ES5 syntax and API fallbacks support these targets; current-engine CI does not certify the old engines.
 - Inspect browser console and private error logs after normal flows. Apache/worker lifecycle output should remain quiet.
-
-The original specification is [`requirements.pdf`](requirements.pdf).

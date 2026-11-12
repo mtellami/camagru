@@ -113,7 +113,7 @@ test('Account lifecycle, camera and upload compositing, GIF, interactions, owner
   await expect(page.getByLabel('Email me about new comments')).not.toBeChecked();
   await page.goto('/editor');
   // Upload mode works without camera APIs and blocks tampered source types.
-  const png = await request.get('/overlays/bloom.png');
+  const png = await request.get('/assets/images/overlays/bloom.png');
   await page.locator('#image-input').setInputFiles({ name: 'source.png', mimeType: 'image/png', buffer: await png.body() });
   await page.locator('input[value="orbit"]').check();
   await page.getByRole('button', { name: 'Capture moment' }).click();

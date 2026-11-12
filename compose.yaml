@@ -17,14 +17,18 @@ services:
     ports:
       - '127.0.0.1:${MAILPIT_PORT:-8025}:8025'
   migrate:
-    build: .
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     env_file: .env
-    command: [php, bin/migrate.php]
+    command: [php, scripts/migrate.php]
     depends_on:
       db:
         condition: service_healthy
   web:
-    build: .
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     env_file: .env
     ports:
       - '127.0.0.1:${APP_PORT:-8080}:80'
@@ -42,10 +46,12 @@ services:
       timeout: 3s
       retries: 20
   worker:
-    build: .
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     user: www-data
     env_file: .env
-    command: [php, bin/worker.php]
+    command: [php, scripts/worker.php]
     restart: unless-stopped
     volumes:
       - media:/var/www/html/storage

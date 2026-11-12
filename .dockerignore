@@ -9,7 +9,6 @@ storage
 test-results
 playwright-report
 .playwright-mcp
-requirements.pdf
 .idea
 .vscode
 .venv

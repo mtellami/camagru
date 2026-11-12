@@ -1,10 +1,10 @@
 <?php
 declare(strict_types=1);
-require dirname(__DIR__) . '/app/bootstrap.php';
+require dirname(__DIR__) . '/src/bootstrap.php';
 
-use Camagru\App;
-use Camagru\Http;
-use Camagru\HttpError;
+use Camagru\Http\App;
+use Camagru\Http\Http;
+use Camagru\Http\HttpError;
 
 try {
     (new App())->run();
