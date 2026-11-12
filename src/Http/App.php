@@ -7,6 +7,7 @@ use Camagru\Config;
 use Camagru\Database\Database;
 use Camagru\Media\Images;
 use Camagru\Mail\Outbox;
+use Camagru\Mail\Email;
 
 final class App
 {
@@ -196,7 +197,8 @@ final class App
                 if (!preg_match('/\A[a-f0-9]{32}\z/', $submission)) { throw new HttpError(422, 'Reload this page before commenting.'); }
                 $comment = Database::query('INSERT INTO comments(photo_id,user_id,body,submission_key) VALUES (?,?,?,?) ON CONFLICT(user_id,submission_key) DO NOTHING RETURNING *', [$id,$user['id'],$body,$submission])->fetch();
                 if ($comment && $photo['notify_comments']) {
-                    Outbox::queue('comment:' . $comment['id'], (int) $photo['user_id'], $photo['email'], 'A new comment on your Camagru moment', $user['username'] . " commented:\n\n" . $body . "\n\n" . Config::url('/photos/' . $id), (int) $comment['id']);
+                    $message = Email::comment($user['username'], $body, Config::url('/photos/' . $id));
+                    Outbox::queue('comment:' . $comment['id'], (int) $photo['user_id'], $photo['email'], 'A new comment on your Camagru moment', $message['body'], (int) $comment['id'], null, $message['html']);
                 }
                 return ['comment' => $comment ? array_merge($comment, ['username' => $user['username']]) : null, 'submission' => bin2hex(random_bytes(16))];
             }

@@ -9,6 +9,7 @@ use Camagru\Http\Http;
 use Camagru\Http\HttpError;
 use Camagru\Media\Images;
 use Camagru\Mail\Outbox;
+use Camagru\Mail\Email;
 
 $passed = 0;
 $failed = 0;
@@ -60,6 +61,30 @@ test('Outbox payload authentication and confidentiality', static function (): vo
     $tampered[30] = chr(ord($tampered[30]) ^ 1);
     try { Outbox::decrypt(base64_encode($tampered)); } catch (RuntimeException) { return; }
     throw new RuntimeException('Tampered payload was accepted');
+});
+test('Email templates escape content and preserve Unicode in both MIME alternatives', static function (): void {
+    $url = 'http://localhost/verify?token=example&source=email';
+    $message = Email::comment('Someone <script>', 'A café moment <img src=x onerror=alert(1)>', $url);
+    check(!str_contains($message['html'], '<script>'));
+    check(!str_contains($message['html'], '<img'));
+    check(str_contains($message['html'], '&lt;img'));
+    check(str_contains($message['html'], 'href="http://localhost/verify?token=example&amp;source=email"'));
+    $encoded = Email::encode($message['body'], $message['html']);
+    preg_match('/boundary="([^"]+)"/', $encoded['headers']['Content-Type'], $match);
+    $parts = explode('--' . $match[1], $encoded['body']);
+    foreach ([1 => 'body', 2 => 'html'] as $index => $key) {
+        [$headers, $payload] = explode("\r\n\r\n", trim($parts[$index]), 2);
+        check(str_contains($headers, $index === 1 ? 'text/plain' : 'text/html'));
+        check(base64_decode(trim($payload), true) === $message[$key]);
+    }
+    $plain = Email::encode('An older queued email');
+    check(base64_decode($plain['body'], true) === 'An older queued email');
+    foreach (['verify' => 'Confirm email', 'email' => 'Confirm new email', 'reset' => 'Reset password'] as $purpose => $action) {
+        $account = Email::account($purpose, $url);
+        check(str_contains($account['html'], $action));
+        check(str_contains($account['body'], $url));
+        check(str_contains($account['body'], $purpose === 'reset' ? '30 minutes' : '24 hours'));
+    }
 });
 test('CSRF rejects missing tokens and foreign origins', static function (): void {
     $_SESSION = ['csrf' => str_repeat('a',64)]; $_POST = [];

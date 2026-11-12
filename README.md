@@ -65,6 +65,8 @@ Sharing uses the device share sheet where available and a copyable permalink oth
 
 ## Email worker
 
+Confirmation, password-reset, email-change, and comment emails use the app's colors and typography with a clear action button. Messages include both HTML and plain-text versions; account emails explain link expiry and what to do if the request was unexpected.
+
 The worker polls the encrypted database outbox. Successful registration, account changes, and comments commit their email jobs transactionally. Comment notifications default to enabled, include self-comments, and recheck the recipient's current preference before sending.
 
 Transient failures retry up to five times with increasing delays. Delivery is at least once: an interruption after SMTP acceptance can produce a duplicate message. Expired account links are discarded. Request a fresh link from `/resend` or `/forgot`.

@@ -13,6 +13,9 @@ async function emailLink(request: APIRequestContext, email: string, subject: str
     if (!message) return false;
     const detail = await (await request.get(`${inbox}/api/v1/message/${message.ID}`)).json();
     link = detail.Text.match(/http:\/\/[^\s]+/)?.[0] || '';
+    expect(detail.HTML).toContain('camagru');
+    expect(detail.HTML).toContain(`href="${link.replace(/&/g, '&amp;')}"`);
+    expect(detail.HTML).toContain(subject.includes('Reset your') ? 'Reset password' : subject.includes('new email') ? 'Confirm new email' : 'Confirm email');
     return !!link;
   }, { timeout: 20000, message: 'Expected account email to arrive in the local inbox' }).toBe(true);
   return new URL(link).pathname + new URL(link).search;

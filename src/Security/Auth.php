@@ -7,6 +7,7 @@ use Camagru\Database\Database;
 use Camagru\Http\Http;
 use Camagru\Http\HttpError;
 use Camagru\Mail\Outbox;
+use Camagru\Mail\Email;
 
 final class Auth
 {
@@ -147,8 +148,9 @@ final class Auth
         $path = $purpose === 'reset' ? '/reset' : '/verify';
         $recipient = $target ?? Database::query('SELECT email FROM users WHERE id=?', [$userId])->fetchColumn();
         $subject = match ($purpose) { 'reset' => 'Reset your Camagru password', 'email' => 'Confirm your new email', default => 'Welcome to Camagru — confirm your email' };
+        $message = Email::account($purpose, Config::url($path . '?token=' . $raw));
         Outbox::queue('token:' . hash('sha256', $raw), $userId, $recipient, $subject,
-            $subject . "\n\nOpen this link to continue:\n" . Config::url($path . '?token=' . $raw) . "\n\nIf you did not request this, you can ignore this email.", null, time() + $seconds);
+            $message['body'], null, time() + $seconds, $message['html']);
         return $raw;
     }
 

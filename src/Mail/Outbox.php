@@ -29,9 +29,9 @@ final class Outbox
         return json_decode($plain, true, 512, JSON_THROW_ON_ERROR);
     }
 
-    public static function queue(string $event, int $userId, string $to, string $subject, string $body, ?int $commentId = null, ?int $expires = null): void
+    public static function queue(string $event, int $userId, string $to, string $subject, string $body, ?int $commentId = null, ?int $expires = null, ?string $html = null): void
     {
-        Database::query('INSERT INTO email_outbox(event_key,user_id,comment_id,payload) VALUES (?,?,?,?) ON CONFLICT(event_key) DO NOTHING', [$event, $userId, $commentId, self::encrypt(compact('to', 'subject', 'body', 'expires'))]);
+        Database::query('INSERT INTO email_outbox(event_key,user_id,comment_id,payload) VALUES (?,?,?,?) ON CONFLICT(event_key) DO NOTHING', [$event, $userId, $commentId, self::encrypt(compact('to', 'subject', 'body', 'expires', 'html'))]);
     }
 
     public static function once(): bool
@@ -51,8 +51,9 @@ final class Outbox
             if ($send) {
                 $from = Config::get('MAIL_FROM', 'Camagru Accounts <no-reply@camagru.app>');
                 if (preg_match('/[\r\n]/', $from . $data['to'] . $data['subject'])) { throw new \RuntimeException('Invalid email headers.'); }
-                $headers = ['From' => $from, 'MIME-Version' => '1.0', 'Content-Type' => 'text/plain; charset=UTF-8', 'Content-Transfer-Encoding' => 'base64'];
-                if (!mail($data['to'], '=?UTF-8?B?' . base64_encode($data['subject']) . '?=', chunk_split(base64_encode($data['body'])), $headers)) { throw new \RuntimeException('SMTP delivery failed.'); }
+                $message = Email::encode($data['body'], $data['html'] ?? null);
+                $headers = ['From' => $from] + $message['headers'];
+                if (!mail($data['to'], '=?UTF-8?B?' . base64_encode($data['subject']) . '?=', $message['body'], $headers)) { throw new \RuntimeException('SMTP delivery failed.'); }
             }
             Database::query("UPDATE email_outbox SET sent_at=NOW(),payload='',lease_until=NULL WHERE id=?", [$job['id']]);
         } catch (\Throwable $error) {
