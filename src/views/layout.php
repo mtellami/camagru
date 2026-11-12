@@ -19,10 +19,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/assets/css/style.css?v=4">
-    <link rel="stylesheet" href="/assets/css/redesign.css?v=12">
-    <script src="/assets/js/app.js?v=10" defer></script>
+    <link rel="stylesheet" href="/assets/css/redesign.css?v=25">
+    <script src="/assets/js/app.js?v=21" defer></script>
 </head>
-<body class="<?= $user ? 'authenticated' : 'guest' ?>">
+<body class="<?= $user ? 'authenticated' : 'guest' ?><?= isset($mode) ? ' auth-page' : '' ?>">
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header">
     <a class="brand" href="/" aria-label="Camagru home"><span class="brand-mark" aria-hidden="true">c.</span>camagru<span class="brand-dot">®</span></a>

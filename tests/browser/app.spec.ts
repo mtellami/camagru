@@ -110,17 +110,19 @@ test('Account lifecycle, camera and upload compositing, GIF, interactions, owner
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => errors.push(message.text()));
-  await expect(page.getByRole('button', { name: 'Capture moment' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Take photo' })).toBeDisabled();
   await page.getByRole('button', { name: 'Turn on camera' }).click();
   await expect(page.locator('#camera-status')).toContainText('Camera is on', { timeout: 15000 });
-  await expect(page.getByRole('button', { name: 'Capture moment' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Take photo' })).toBeEnabled();
   await page.locator('input[value="postcard"]').check();
   await expect(page.locator('#overlay-preview')).toBeVisible();
-  await page.getByRole('button', { name: 'Capture moment' }).click();
+  await page.getByRole('button', { name: 'Take photo' }).click();
   await expect(page.locator('#history-grid a')).toHaveCount(1, { timeout: 15000 });
   const photoPath = await page.locator('#history-grid a').first().getAttribute('href');
-  await page.locator('.gif-studio summary').click();
-  await page.getByRole('button', { name: 'Record camera burst' }).click();
+  await page.getByRole('tab', { name: 'GIF', exact: true }).click();
+  await page.getByRole('button', { name: 'Record burst' }).click();
+  await expect(page.locator('#gif-frame-strip button')).toHaveCount(8, { timeout: 15000 });
+  await page.getByRole('button', { name: 'Create GIF' }).click();
   await expect(page.locator('#history-grid a')).toHaveCount(2, { timeout: 20000 });
   const gifPath = await page.locator('#history-grid a').first().getAttribute('href');
   await page.goto(gifPath!);
@@ -142,7 +144,8 @@ test('Account lifecycle, camera and upload compositing, GIF, interactions, owner
   await page.addInitScript(() => { Object.defineProperty(navigator, 'share', { value: undefined, configurable: true }); Object.defineProperty(window, 'IntersectionObserver', { value: undefined, configurable: true }); });
   await page.reload();
   await page.getByRole('button', { name: 'Share' }).click();
-  await expect(page.locator('.share-fallback')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Share', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
 
   const other = await browser.newContext();
   const otherPage = await other.newPage();
@@ -165,7 +168,7 @@ test('Account lifecycle, camera and upload compositing, GIF, interactions, owner
   const png = await request.get('/assets/images/overlays/bloom.png');
   await page.locator('#image-input').setInputFiles({ name: 'source.png', mimeType: 'image/png', buffer: await png.body() });
   await page.locator('input[value="orbit"]').check();
-  await page.getByRole('button', { name: 'Capture moment' }).click();
+  await page.getByRole('button', { name: 'Take photo' }).click();
   await expect(page.locator('#history-grid a')).toHaveCount(3, { timeout: 15000 });
   const requestToken = await page.locator('meta[name="csrf-token"]').getAttribute('content');
   const headers = { Accept: 'application/json', 'X-CSRF-Token': requestToken! };
@@ -246,4 +249,82 @@ test('Account lifecycle, camera and upload compositing, GIF, interactions, owner
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page).toHaveURL(/\/editor$/);
   expect(errors).toEqual([]);
+});
+
+test('Comment authors can delete their notes and photo menus dismiss outside', async ({ page, request, browser }, testInfo) => {
+  test.setTimeout(120000);
+  const suffix = `${testInfo.project.name.slice(0,2)}${Date.now().toString(36)}`;
+  await register(page, request, `notes_${suffix}`);
+  await page.getByRole('button', { name: 'Turn on camera' }).click();
+  await expect(page.locator('#camera-status')).toContainText('Camera is on');
+  await page.locator('input[value="postcard"]').check();
+  await page.getByRole('button', { name: 'Take photo' }).click();
+  await expect(page.locator('#history-grid a')).toHaveCount(1);
+  const photoPath = (await page.locator('#history-grid a').getAttribute('href'))!;
+  await page.goto(photoPath);
+  await page.getByLabel('Leave a note').fill('A removable note');
+  await page.getByRole('button', { name: 'Post comment' }).click();
+  const remove = page.getByRole('button', { name: 'Delete your comment' });
+  await expect(remove).toBeVisible();
+  const deletePath = (await page.locator('.comment-delete-form').getAttribute('action'))!;
+  await page.reload();
+  await expect(remove).toBeVisible();
+  await page.getByLabel('More actions').click();
+  await expect(page.locator('.moment-more')).toHaveAttribute('open', '');
+  await page.locator('.detail-image').click();
+  await expect(page.locator('.moment-more')).not.toHaveAttribute('open', '');
+  await page.getByLabel('More actions').click();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.moment-more')).not.toHaveAttribute('open', '');
+  const other = await browser.newContext();
+  try {
+    const otherPage = await other.newPage();
+    await register(otherPage, request, `reader_${suffix}`);
+    await otherPage.goto(photoPath);
+    await expect(otherPage.getByRole('button', { name: 'Delete your comment' })).toHaveCount(0);
+    const csrf = (await otherPage.locator('meta[name="csrf-token"]').getAttribute('content'))!;
+    const denied = await otherPage.request.post(deletePath, { headers: { Accept: 'application/json', 'X-CSRF-Token': csrf } });
+    expect(denied.status()).toBe(403);
+  } finally { await other.close(); }
+  const noCsrf = await page.request.post(deletePath, { headers: { Accept: 'application/json' } });
+  expect(noCsrf.status()).toBe(403);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (url: string) => { (window as any).copiedMoment = url; } } });
+    Object.defineProperty(navigator, 'share', { configurable: true, value: undefined });
+  });
+  await page.getByRole('button', { name: 'Share', exact: true }).click();
+  const shareDialog = page.getByRole('region', { name: 'Share', exact: true });
+  await expect(shareDialog).toBeVisible();
+  await expect(shareDialog.getByRole('link', { name: 'Email', exact: true })).toHaveAttribute('href', /mailto:.*body=http/);
+  for (const [name, host] of [['Facebook', 'www.facebook.com'], ['Twitter / X', 'twitter.com'], ['LinkedIn', 'www.linkedin.com']]) {
+    const link = shareDialog.getByRole('link', { name, exact: true });
+    const url = new URL((await link.getAttribute('href'))!);
+    expect(url.hostname).toBe(host);
+    expect(url.searchParams.get(name === 'Facebook' ? 'u' : 'url')).toBe(new URL(photoPath, page.url()).href);
+    await expect(link).toHaveAttribute('target', '_blank');
+  }
+  await shareDialog.getByRole('button', { name: 'Embed', exact: true }).click();
+  await expect(shareDialog.getByRole('status')).toContainText('Embed code copied');
+  const embed = await page.evaluate(() => (window as any).copiedMoment);
+  expect(embed).toContain(`<a href="${new URL(photoPath, page.url()).href}">`);
+  expect(embed).toContain('/image');
+  await shareDialog.getByRole('button', { name: 'Copy Link' }).click();
+  await expect(shareDialog.getByRole('status')).toContainText('Link copied');
+  expect(await page.evaluate(() => (window as any).copiedMoment)).toBe(new URL(photoPath, page.url()).href);
+  await page.keyboard.press('Escape');
+  await expect(shareDialog).toBeHidden();
+  await remove.click();
+  const confirmation = page.getByRole('dialog', { name: 'Delete this comment?' });
+  await expect(confirmation).toBeVisible();
+  await expect(page.locator('#comments .comment')).toHaveCount(1);
+  await confirmation.getByRole('button', { name: 'Keep it' }).click();
+  await expect(confirmation).toBeHidden();
+  await expect(page.locator('#comments .comment')).toHaveCount(1);
+  await remove.click();
+  await confirmation.getByRole('button', { name: 'Delete comment', exact: true }).click();
+  await expect(confirmation).toBeHidden();
+  await expect(page.locator('#comments .comment')).toHaveCount(0);
+  await expect(page.locator('#no-comments')).toBeVisible();
+  await page.reload();
+  await expect(page.locator('#comments .comment')).toHaveCount(0);
 });

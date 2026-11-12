@@ -136,6 +136,12 @@ final class App
             if (Http::jsonRequested()) { Http::json(['ok' => true, 'data' => ['message' => 'Your moment is in the gallery.', 'redirect' => '/photos/' . $photo['id'], 'photo' => $photo]], 201); }
             Http::redirect('/photos/' . $photo['id']);
         }
+        if (preg_match('~^/photos/([1-9][0-9]*)/comments/([1-9][0-9]*)/delete$~', $path, $matches)) {
+            $user = Auth::requireUser();
+            $deleted = Database::query('DELETE FROM comments WHERE id=? AND photo_id=? AND user_id=? RETURNING id', [(int) $matches[2], (int) $matches[1], $user['id']])->fetchColumn();
+            if (!$deleted) { throw new HttpError(403, 'You can only delete your own comments.'); }
+            Http::success('Your comment has been deleted.', '/photos/' . $matches[1]);
+        }
         if (preg_match('~^/photos/([1-9][0-9]*)/(like|unlike|comments|delete)$~', $path, $matches)) {
             $this->interact((int) $matches[1], $matches[2]);
         }
