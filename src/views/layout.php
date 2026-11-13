@@ -31,7 +31,7 @@ use Camagru\Config;
             href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&display=swap"
             rel="stylesheet">
         <link rel="stylesheet" href="/assets/css/style.css?v=4">
-        <link rel="stylesheet" href="/assets/css/redesign.css?v=28">
+        <link rel="stylesheet" href="/assets/css/theme.css?v=28">
         <script type="module" src="/assets/js/app.js?v=22"></script>
     </head>
 
