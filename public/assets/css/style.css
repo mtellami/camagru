@@ -655,9 +655,17 @@ textarea {
   object-fit: cover;
 }
 .viewfinder #overlay-preview {
+  position: absolute;
+  inset: 0;
   z-index: 2;
   pointer-events: none;
-  object-fit: fill;
+}
+.viewfinder #overlay-preview img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 #camera-placeholder {
   position: absolute;

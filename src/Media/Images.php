@@ -11,8 +11,8 @@ use Camagru\Http\HttpError;
 final class Images
 {
     public const OVERLAYS = [
-        'exclamation' => 'Exclamation',
-        'funny-cat' => 'Funny Cat',
+        'exploded' => 'Exploded',
+        'cat' => 'Cat',
         'wanted' => 'Wanted',
         'breaking-news' => 'Breaking News',
         '1337' => '1337',
@@ -64,15 +64,30 @@ final class Images
         }
     }
 
+    public static function overlays(mixed $value): array
+    {
+        // Accept the former single-sticker payload from already-open editors.
+        if (is_string($value)) {
+            $value = $value === 'none' || $value === '' ? [] : [$value];
+        }
+        if (!is_array($value) || !array_is_list($value) || count($value) > count(self::OVERLAYS)) {
+            throw new HttpError(422, 'Choose valid stickers.');
+        }
+        foreach ($value as $overlay) {
+            if (!is_string($overlay) || !isset(self::OVERLAYS[$overlay])) {
+                throw new HttpError(422, 'Choose valid stickers.');
+            }
+        }
+        return array_values(array_unique($value));
+    }
+
     public static function composite(
         \GdImage $source,
-        string $overlay,
+        array $overlays,
         int $width = 1280,
         int $height = 960,
     ): \GdImage {
-        if ($overlay !== 'none' && !isset(self::OVERLAYS[$overlay])) {
-            throw new HttpError(422, 'Select a valid frame or None.');
-        }
+        $overlays = self::overlays($overlays);
         $canvas = imagecreatetruecolor($width, $height);
         imagefill($canvas, 0, 0, imagecolorallocate($canvas, 246, 243, 235));
         $sw = imagesx($source);
@@ -91,25 +106,28 @@ final class Images
             (int) $cropW,
             (int) $cropH,
         );
-        if ($overlay === 'none') {
-            return $canvas;
-        }
-        $layer = imagecreatefrompng(
-            Config::root() . '/public/assets/images/overlays/' . $overlay . '.png',
-        );
         imagealphablending($canvas, true);
-        imagecopyresampled(
-            $canvas,
-            $layer,
-            0,
-            0,
-            0,
-            0,
-            $width,
-            $height,
-            imagesx($layer),
-            imagesy($layer),
-        );
+        foreach ($overlays as $overlay) {
+            $layer = imagecreatefrompng(
+                Config::root() . '/public/assets/images/overlays/' . $overlay . '.png',
+            );
+            $scale = min($width / imagesx($layer), $height / imagesy($layer));
+            $layerWidth = (int) round(imagesx($layer) * $scale);
+            $layerHeight = (int) round(imagesy($layer) * $scale);
+            imagecopyresampled(
+                $canvas,
+                $layer,
+                intdiv($width - $layerWidth, 2),
+                intdiv($height - $layerHeight, 2),
+                0,
+                0,
+                $layerWidth,
+                $layerHeight,
+                imagesx($layer),
+                imagesy($layer),
+            );
+            unset($layer);
+        }
         return $canvas;
     }
 
@@ -136,13 +154,11 @@ final class Images
 
     public static function publish(
         int $userId,
-        string $overlay,
+        array $overlays,
         string $submission,
         bool $gif,
     ): array {
-        if ($overlay !== 'none' && !isset(self::OVERLAYS[$overlay])) {
-            throw new HttpError(422, 'Select a valid frame or None.');
-        }
+        $overlays = self::overlays($overlays);
         if (!preg_match('/\A[a-f0-9]{32}\z/', $submission)) {
             throw new HttpError(422, 'Invalid capture request. Reload the editor.');
         }
@@ -199,7 +215,7 @@ final class Images
             $frames = [];
             foreach ($files as $index => $file) {
                 $source = self::upload($file);
-                $canvas = self::composite($source, $overlay, $width, $height);
+                $canvas = self::composite($source, $overlays, $width, $height);
                 unset($source);
                 if ($index === 0) {
                     $poster = $directory . '/' . $key . '.jpg';

@@ -33,13 +33,13 @@ use Camagru\Media\Images;
                 <video id="camera" autoplay muted playsinline hidden></video>
                 <img id="upload-preview" alt="Your uploaded source" hidden>
                 <img id="gif-frame-preview" alt="Selected GIF frame" hidden>
-                <img id="overlay-preview" alt="" hidden>
+                <div id="overlay-preview" aria-hidden="true" hidden></div>
                 <div class="stage-chips">
                     <span id="source-badge">
                         <span class="status-dot" aria-hidden="true"></span>Your creative space
                     </span>
                     <button id="switch-source" type="button" hidden></button>
-                    <span id="frame-chip">Frame: None</span>
+                    <span id="frame-chip" role="status">Stickers: None</span>
                 </div>
                 <div id="camera-placeholder">
                     <span class="camera-off-icon" aria-hidden="true">
@@ -114,12 +114,12 @@ use Camagru\Media\Images;
             <input type="hidden" name="csrf" value="<?= Http::escape($_SESSION['csrf']) ?>">
             <input type="hidden" name="submission" value="<?= bin2hex(random_bytes(16)) ?>">
             <fieldset class="overlay-picker">
-                <legend>Choose a frame</legend>
+                <legend>Choose stickers · select as many as you like</legend>
                 <div class="overlay-options">
                     <?php foreach (['none' => 'None'] + Images::OVERLAYS as $key => $name): ?>
                     <label class="overlay-option">
-                        <input type="radio" name="overlay" value="<?= $key ?>" required
-                            <?= $key === 'none' ? 'checked' : '' ?>>
+                        <input type="checkbox" <?= $key === 'none' ? 'id="clear-stickers"' : 'name="overlay[]"' ?>
+                            value="<?= $key ?>" <?= $key === 'none' ? 'checked' : '' ?>>
                         <span class="overlay-swatch">
                             <?php if ($key === 'none'): ?>
                             <span class="none-frame-icon">
@@ -151,7 +151,6 @@ use Camagru\Media\Images;
         <form action="/photos/gif" method="post" enctype="multipart/form-data" id="gif-form" hidden>
             <input type="hidden" name="csrf" value="<?= Http::escape($_SESSION['csrf']) ?>">
             <input type="hidden" name="submission" value="<?= bin2hex(random_bytes(16)) ?>">
-            <input type="hidden" name="overlay" id="gif-overlay">
             <div class="studio-submit">
                 <button class="button" id="gif-upload" type="submit" disabled>
                     <svg viewBox="0 0 24 24" aria-hidden="true">

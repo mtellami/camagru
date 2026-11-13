@@ -1,4 +1,4 @@
-.PHONY: up down logs
+.PHONY: up down logs test
 
 up:
 	php tools/scripts/setup.php
@@ -9,3 +9,6 @@ down:
 
 logs:
 	docker compose logs --tail=100 -f
+
+test:
+	docker compose exec -T web php tools/scripts/test-overlays.php

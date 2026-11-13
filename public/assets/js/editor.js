@@ -31,7 +31,7 @@ export function initEditor() {
     const gifFramePreview = document.getElementById('gif-frame-preview');
     let stream = null;
     let source = '';
-    let overlay = 'none';
+    let overlays = [];
     const switchSource = document.getElementById('switch-source');
     let previewUrl = null;
     let cameraUrl = null;
@@ -129,12 +129,12 @@ export function initEditor() {
         }, 250);
     });
     function ready() {
-        capture.disabled = recording || !(overlay && source);
+        capture.disabled = recording || !source;
         modeTabs.forEach(function (tab) {
             tab.disabled = recording;
         });
-        form.querySelectorAll('input[name="overlay"]').forEach(function (radio) {
-            radio.disabled = recording;
+        form.querySelectorAll('.overlay-picker input').forEach(function (input) {
+            input.disabled = recording;
         });
         framesInput.disabled = recording;
         switchSource.disabled = recording;
@@ -150,11 +150,10 @@ export function initEditor() {
                 offerUpload ? (gifMode ? 'Upload frames' : 'Upload a photo') : 'Turn on camera',
             ),
         );
-        burst.disabled = recording || !(overlay && source === 'camera');
+        burst.disabled = recording || source !== 'camera';
         document.getElementById('gif-upload').disabled =
-            recording || !(overlay && gifFrames.length >= 2 && gifFrames.length <= 8);
+            recording || !(gifFrames.length >= 2 && gifFrames.length <= 8);
         document.getElementById('gif-create-hint').hidden = gifFrames.length >= 2 || recording;
-        document.getElementById('gif-overlay').value = overlay;
     }
     function stopCamera() {
         cameraGeneration++;
@@ -234,7 +233,7 @@ export function initEditor() {
             video.onloadeddata = function () {
                 source = 'camera';
                 cameraStatus.textContent =
-                    'Camera is on. Pick an overlay, then capture your moment.';
+                    'Camera is on. Pick your stickers, then capture your moment.';
                 ready();
             };
         }
@@ -276,7 +275,7 @@ export function initEditor() {
             source = 'upload';
             preview.hidden = false;
             placeholder.hidden = true;
-            cameraStatus.textContent = 'Photo loaded. Pick an overlay and make it yours.';
+            cameraStatus.textContent = 'Photo loaded. Pick your stickers and make it yours.';
             ready();
         };
         preview.onerror = function () {
@@ -288,20 +287,45 @@ export function initEditor() {
         preview.src = previewUrl;
         ready();
     });
-    form.querySelectorAll('input[name="overlay"]').forEach(function (radio) {
-        radio.addEventListener('change', function () {
-            overlay = radio.value;
-            overlayPreview.hidden = overlay === 'none';
-            if (overlay === 'none') {
-                overlayPreview.removeAttribute('src');
-            } else {
-                overlayPreview.src = '/assets/images/overlays/' + overlay + '.png';
+    const stickerInputs = form.querySelectorAll('input[name="overlay[]"]');
+    const clearStickers = document.getElementById('clear-stickers');
+    function updateStickers() {
+        overlays = [];
+        const names = [];
+        overlayPreview.replaceChildren();
+        stickerInputs.forEach(function (input) {
+            if (!input.checked) {
+                return;
             }
-            document.getElementById('frame-chip').textContent =
-                'Frame: ' + radio.parentElement.lastElementChild.textContent;
-            ready();
+            overlays.push(input.value);
+            names.push(input.parentElement.lastElementChild.textContent);
+            const layer = element('img');
+            layer.src = '/assets/images/overlays/' + input.value + '.png';
+            layer.alt = '';
+            overlayPreview.appendChild(layer);
         });
+        clearStickers.checked = overlays.length === 0;
+        overlayPreview.hidden = overlays.length === 0;
+        document.getElementById('frame-chip').textContent =
+            'Stickers: ' + (names.length > 2 ? names.length + ' selected' : names.join(', ') || 'None');
+        document.getElementById('frame-chip').title = names.join(', ');
+        ready();
+    }
+    stickerInputs.forEach(function (input) {
+        input.addEventListener('change', updateStickers);
     });
+    clearStickers.addEventListener('change', function () {
+        stickerInputs.forEach(function (input) {
+            input.checked = false;
+        });
+        updateStickers();
+    });
+    function appendStickers(data) {
+        overlays.forEach(function (overlay) {
+            data.append('overlay[]', overlay);
+        });
+    }
+    updateStickers();
     framesInput.addEventListener('change', function () {
         clearGifPreviews();
         const files = Array.from(framesInput.files || []);
@@ -385,7 +409,7 @@ export function initEditor() {
     }
     form.addEventListener('submit', function (event) {
         event.preventDefault();
-        if (!overlay || !source || form.getAttribute('aria-busy') === 'true') {
+        if (!source || form.getAttribute('aria-busy') === 'true') {
             return;
         }
         busy(form, true);
@@ -398,12 +422,8 @@ export function initEditor() {
                     status(form, 'Wait for your camera to be ready.', true);
                     return;
                 }
-                const cameraData = new FormData();
-                cameraData.append('csrf', token());
-                cameraData.append('submission', form.elements.submission.value);
-                cameraData.append('overlay', overlay);
-                cameraData.append('image', blob, 'capture.jpg');
-                sendCapture(form, cameraData);
+                data.set('image', blob, 'capture.jpg');
+                sendCapture(form, data);
             });
         } else {
             sendCapture(form, data);
@@ -412,7 +432,6 @@ export function initEditor() {
     gifForm.addEventListener('submit', function (event) {
         event.preventDefault();
         if (
-            !overlay ||
             gifFrames.length < 2 ||
             gifFrames.length > 8 ||
             gifForm.getAttribute('aria-busy') === 'true'
@@ -424,7 +443,7 @@ export function initEditor() {
         const data = new FormData();
         data.append('csrf', token());
         data.append('submission', gifForm.elements.submission.value);
-        data.append('overlay', overlay);
+        appendStickers(data);
         gifFrames.forEach(function (frame, index) {
             data.append('frames[]', frame, frame.name || 'frame-' + index + '.jpg');
         });
@@ -432,7 +451,6 @@ export function initEditor() {
     });
     burst.addEventListener('click', function () {
         if (
-            !overlay ||
             source !== 'camera' ||
             recording ||
             gifForm.getAttribute('aria-busy') === 'true'
@@ -445,11 +463,11 @@ export function initEditor() {
         busy(gifForm, true);
         ready();
         const frames = [];
-        const chosenOverlay = overlay;
+        const chosenOverlays = overlays.join(',');
         function next() {
             status(gifForm, 'Recording frame ' + (frames.length + 1) + ' of 8…', false);
             captureFrame(video, 480, 360, function (blob) {
-                if (!blob || source !== 'camera' || overlay !== chosenOverlay) {
+                if (!blob || source !== 'camera' || overlays.join(',') !== chosenOverlays) {
                     recording = false;
                     busy(gifForm, false);
                     ready();

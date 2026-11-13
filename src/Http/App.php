@@ -227,12 +227,12 @@ final class App
         if ($path === '/photos' || $path === '/photos/gif') {
             $user = Auth::requireUser();
             Auth::rate('capture', 30, 3600, (string) $user['id']);
-            $overlay = Http::input('overlay');
+            $overlays = Images::overlays($_POST['overlay'] ?? []);
             $submission = Http::input('submission');
             session_write_close();
             $photo = Images::publish(
                 (int) $user['id'],
-                $overlay,
+                $overlays,
                 $submission,
                 $path === '/photos/gif',
             );

@@ -23,3 +23,7 @@ make logs   # Follow service logs
 Nginx and PHP-FPM share the `web` container. PostgreSQL initializes new database volumes from `src/Database/schema.sql`. Data persists in Docker volumes.
 
 PHP lives in `src/`, templates in `src/views/`, and static assets in `public/assets/`. JavaScript uses native modules; there is no package manager or build step.
+
+Select several stickers to combine them on photos or GIFs; select None to clear them. The live preview and server apply stickers in picker order.
+
+Run `make test` with the containers running to check sticker validation and composition at photo and GIF resolutions.
