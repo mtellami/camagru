@@ -7,6 +7,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - database:/var/lib/postgresql/data
+      - ./src/Database/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
     healthcheck:
       test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
       interval: 2s
@@ -16,46 +17,23 @@ services:
     image: axllent/mailpit:v1.28.2@sha256:28a161f4a39c70671d0fb771a6e7a3abe6d2144c0e2a595ff72767ab63cd14f6
     ports:
       - '127.0.0.1:${MAILPIT_PORT:-8025}:8025'
-  migrate:
-    build:
-      context: .
-      dockerfile: tools/docker/Dockerfile
-      target: app
-    env_file: .env
-    command: [php, tools/scripts/migrate.php]
-    depends_on:
-      db:
-        condition: service_healthy
   web:
     build:
       context: .
       dockerfile: tools/docker/Dockerfile
-      target: app
     env_file: .env
+    init: true
+    ports:
+      - '127.0.0.1:${APP_PORT:-8080}:80'
     volumes:
       - media:/var/www/html/storage
     depends_on:
-      migrate:
-        condition: service_completed_successfully
+      db:
+        condition: service_healthy
       mailpit:
         condition: service_started
     healthcheck:
-      test: [CMD, php, -r, '$$socket=@fsockopen("127.0.0.1",9000);exit($$socket ? 0 : 1);']
-      interval: 5s
-      timeout: 3s
-      retries: 20
-  nginx:
-    build:
-      context: .
-      dockerfile: tools/docker/Dockerfile
-      target: nginx
-    ports:
-      - '127.0.0.1:${APP_PORT:-8080}:80'
-    depends_on:
-      web:
-        condition: service_healthy
-    healthcheck:
-      test: [CMD, wget, --quiet, --tries=1, --timeout=2, --output-document=/dev/null, http://127.0.0.1/health]
+      test: [CMD, curl, --fail, --silent, --output, /dev/null, http://127.0.0.1/health]
       interval: 5s
       timeout: 3s
       retries: 20

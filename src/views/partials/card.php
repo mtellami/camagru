@@ -1,6 +1,58 @@
-<?php use Camagru\Http\Http; ?>
+<?php
+
+use Camagru\Http\Http;
+?>
+
 <article class="photo-card">
-    <a class="photo-link" href="/photos/<?= (int) $photo['id'] ?>"><img src="/media/<?= (int) $photo['id'] ?>/thumb" alt="A creation by <?= Http::escape($photo['username']) ?>" width="320" height="240"><?php if ($photo['kind'] === 'gif'): ?><span class="gif-badge">GIF</span><?php endif; ?></a>
-    <?php if ($user): ?><form class="card-like-form" method="post" action="/photos/<?= (int) $photo['id'] ?>/<?= $photo['liked'] ? 'unlike' : 'like' ?>" data-ajax="like"><input type="hidden" name="csrf" value="<?= Http::escape($_SESSION['csrf']) ?>"><button type="submit" aria-label="<?= $photo['liked'] ? 'Unlike' : 'Like' ?> this photo" aria-pressed="<?= $photo['liked'] ? 'true' : 'false' ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></svg></button></form><?php else: ?><a class="card-like-form card-like-link" href="/login" aria-label="Sign in to like this photo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></svg></a><?php endif; ?>
-    <div class="card-meta"><span class="author"><span class="avatar" aria-hidden="true"><?= Http::escape(strtoupper(substr($photo['username'],0,1))) ?></span><?= Http::escape($photo['username']) ?></span><a href="/photos/<?= (int) $photo['id'] ?>" class="card-counts" aria-label="<?= (int) $photo['likes'] ?> likes, <?= (int) $photo['comments'] ?> comments"><span class="count-item"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></svg><?= (int) $photo['likes'] ?></span><span class="count-item"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-6.5A7.5 7.5 0 0 1 10.5 7H13a7 7 0 0 1 7 4.5Z"/><path d="M8 3h5a7 7 0 0 1 7 7"/></svg><?= (int) $photo['comments'] ?></span></a></div>
+    <a class="photo-link" href="/photos/<?= (int) $photo['id'] ?>">
+        <img src="/media/<?= (int) $photo['id'] ?>/thumb"
+            alt="A creation by <?= Http::escape($photo['username']) ?>" width="320" height="240">
+        <?php if ($photo['kind'] === 'gif'): ?>
+        <span class="gif-badge">GIF</span>
+        <?php endif; ?>
+    </a>
+    <?php if ($user): ?>
+    <form class="card-like-form" method="post"
+        action="/photos/<?= (int) $photo['id'] ?>/<?= $photo['liked'] ? 'unlike' : 'like' ?>"
+        data-ajax="like">
+        <input type="hidden" name="csrf" value="<?= Http::escape($_SESSION['csrf']) ?>">
+        <button type="submit" aria-label="<?= $photo['liked'] ? 'Unlike' : 'Like' ?> this photo"
+            aria-pressed="<?= $photo['liked'] ? 'true' : 'false' ?>">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                    d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z" />
+            </svg>
+        </button>
+    </form>
+    <?php else: ?>
+    <a class="card-like-form card-like-link" href="/login" aria-label="Sign in to like this photo">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+                d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z" />
+        </svg>
+    </a>
+    <?php endif; ?>
+    <div class="card-meta">
+        <span class="author">
+            <span class="avatar" aria-hidden="true">
+                <?= Http::escape(strtoupper(substr($photo['username'], 0, 1))) ?></span>
+            <?= Http::escape($photo['username']) ?>
+        </span>
+        <a href="/photos/<?= (int) $photo['id'] ?>" class="card-counts"
+            aria-label="<?= (int) $photo['likes'] ?> likes, <?= (int) $photo['comments'] ?> comments">
+            <span class="count-item">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                        d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z" />
+                </svg><?= (int) $photo['likes'] ?>
+            </span>
+            <span class="count-item">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                        d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-6.5A7.5 7.5 0 0 1 10.5 7H13a7 7 0 0 1 7 4.5Z" />
+                    <path d="M8 3h5a7 7 0 0 1 7 7" />
+                </svg><?= (int) $photo['comments'] ?>
+            </span>
+        </a>
+    </div>
 </article>

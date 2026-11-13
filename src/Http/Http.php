@@ -1,5 +1,7 @@
 <?php
+
 declare(strict_types=1);
+
 namespace Camagru\Http;
 
 use Camagru\Security\Auth;
@@ -17,22 +19,36 @@ final class Http
         http_response_code($status);
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode($payload, JSON_THROW_ON_ERROR | JSON_HEX_TAG | JSON_HEX_AMP);
-        exit;
+        exit();
     }
 
     public static function redirect(string $path): never
     {
-        if (!str_starts_with($path, '/') || str_starts_with($path, '//') || preg_match('/[\r\n\\\\]/', $path)) {
+        if (
+            !str_starts_with($path, '/') ||
+            str_starts_with($path, '//') ||
+            preg_match('/[\r\n\\\\]/', $path)
+        ) {
             $path = '/';
         }
         header('Location: ' . $path, true, 303);
-        exit;
+        exit();
     }
 
-    public static function success(string $message, string $path, array $data = [], int $status = 200): never
-    {
+    public static function success(
+        string $message,
+        string $path,
+        array $data = [],
+        int $status = 200,
+    ): never {
         if (self::jsonRequested()) {
-            self::json(['ok' => true, 'data' => array_merge(['message' => $message, 'redirect' => $path], $data)], $status);
+            self::json(
+                [
+                    'ok' => true,
+                    'data' => array_merge(['message' => $message, 'redirect' => $path], $data),
+                ],
+                $status,
+            );
         }
         $_SESSION['flash'] = $message;
         self::redirect($path);
@@ -50,7 +66,7 @@ final class Http
         require Config::root() . '/src/views/' . $template . '.php';
         $content = ob_get_clean();
         require Config::root() . '/src/views/layout.php';
-        exit;
+        exit();
     }
 
     public static function escape(mixed $value): string
@@ -60,7 +76,9 @@ final class Http
 
     public static function headers(): void
     {
-        header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+        header(
+            "Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+        );
         header('X-Content-Type-Options: nosniff');
         header('X-Frame-Options: DENY');
         header('Referrer-Policy: no-referrer');
@@ -71,7 +89,9 @@ final class Http
     public static function input(string $key): string
     {
         $value = $_POST[$key] ?? '';
-        if (!is_string($value)) { throw new HttpError(422, 'Invalid form data.'); }
+        if (!is_string($value)) {
+            throw new HttpError(422, 'Invalid form data.');
+        }
         return $value;
     }
 }
