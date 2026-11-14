@@ -2,6 +2,8 @@
 
 A photo-sharing app built with PHP 8.4, PostgreSQL, and plain JavaScript. Capture or upload photos, add frames, create GIFs, and share likes and comments.
 
+See [ARCHITECTURE.md](ARCHITECTURE.md) for Mermaid diagrams tracing the UI through the code, database, media storage, and email delivery.
+
 ## Run
 
 Requires Docker Compose, Make, and PHP CLI.
