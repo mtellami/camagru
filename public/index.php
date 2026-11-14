@@ -3,7 +3,7 @@
 declare(strict_types=1);
 require dirname(__DIR__) . '/src/bootstrap.php';
 
-use Camagru\Http\App;
+use Camagru\App;
 use Camagru\Http\Http;
 use Camagru\Http\HttpError;
 use Camagru\Maintenance;

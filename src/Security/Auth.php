@@ -16,6 +16,7 @@ final class Auth
     private static bool $loaded = false;
     private static ?array $current = null;
 
+    /** Start a cookie session, enforce expiry, and initialize its CSRF token. */
     public static function start(): void
     {
         session_name('camagru');
@@ -38,6 +39,7 @@ final class Auth
         $_SESSION['csrf'] ??= bin2hex(random_bytes(32));
     }
 
+    /** Load the verified session user and reject outdated authentication versions. */
     public static function user(): ?array
     {
         if (!self::$loaded) {
@@ -61,6 +63,7 @@ final class Auth
         return self::$current;
     }
 
+    /** Return the signed-in user or respond with a login redirect / JSON error. */
     public static function requireUser(): array
     {
         $user = self::user();
@@ -74,6 +77,7 @@ final class Auth
         return $user;
     }
 
+    /** Regenerate the session ID and start a fresh authenticated session. */
     public static function login(array $user): void
     {
         session_regenerate_id(true);
@@ -88,6 +92,7 @@ final class Auth
         self::$current = null;
     }
 
+    /** Clear authentication and rotate the session ID and CSRF token. */
     public static function logout(): void
     {
         $_SESSION = ['csrf' => bin2hex(random_bytes(32))];
@@ -96,6 +101,7 @@ final class Auth
         self::$loaded = true;
     }
 
+    /** Require the session CSRF token and validate any supplied request origin. */
     public static function csrf(): void
     {
         $received = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? Http::input('csrf');
@@ -122,6 +128,7 @@ final class Auth
         }
     }
 
+    /** Increment an action/subject counter and reject requests above its limit. */
     public static function rate(
         string $action,
         int $limit,
@@ -142,6 +149,7 @@ final class Auth
         }
     }
 
+    /** Normalize a username and enforce the allowed characters and length. */
     public static function validateUsername(string $value): string
     {
         $value = trim($value);
@@ -155,6 +163,7 @@ final class Auth
         return $value;
     }
 
+    /** Normalize an email address and validate its format and size. */
     public static function validateEmail(string $value): string
     {
         $value = strtolower(trim($value));
@@ -166,6 +175,7 @@ final class Auth
         return $value;
     }
 
+    /** Enforce password requirements and matching confirmation. */
     public static function validatePassword(string $value, string $confirmation): string
     {
         if (
@@ -187,11 +197,13 @@ final class Auth
         return $value;
     }
 
+    /** Hash a password with Argon2id for storage. */
     public static function hash(string $password): string
     {
         return password_hash($password, PASSWORD_ARGON2ID);
     }
 
+    /** Rate-limit reauthentication and verify the current password. */
     public static function currentPassword(array $user, string $password): void
     {
         self::rate('reauth', 10, 900, (string) $user['id']);
@@ -203,6 +215,7 @@ final class Auth
         }
     }
 
+    /** Replace outstanding tokens for this purpose and queue an encrypted email link. */
     public static function token(int $userId, string $purpose, ?string $target = null): string
     {
         Database::query(
@@ -238,6 +251,7 @@ final class Auth
         return $raw;
     }
 
+    /** Lock and consume an unexpired token, applying its change in the same transaction. */
     public static function consume(string $raw, string $purpose, callable $callback): void
     {
         if (!preg_match('/\A[a-f0-9]{64}\z/', $raw)) {

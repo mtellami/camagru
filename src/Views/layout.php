@@ -32,7 +32,7 @@ use Camagru\Config;
             rel="stylesheet">
         <link rel="stylesheet" href="/assets/css/style.css?v=5">
         <link rel="stylesheet" href="/assets/css/theme.css?v=28">
-        <script type="module" src="/assets/js/app.js?v=23"></script>
+        <script type="module" src="/assets/js/app.js?v=24"></script>
     </head>
 
     <body class="<?= $user ? 'authenticated' : 'guest' ?><?= isset($mode) ? ' auth-page' : '' ?>">

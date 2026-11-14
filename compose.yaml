@@ -2,9 +2,9 @@ services:
   db:
     image: postgres:17-bookworm@sha256:665dc7b37ac52a17e298511414c21d23ffa4e6a6ef6225b3e5d59c7afb35e994
     environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:?Set DB_NAME in .env}
+      POSTGRES_USER: ${DB_USER:?Set DB_USER in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     volumes:
       - database:/var/lib/postgresql/data
       - ./src/Database/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
@@ -20,7 +20,7 @@ services:
   web:
     build:
       context: .
-      dockerfile: tools/docker/Dockerfile
+      dockerfile: docker/Dockerfile
     env_file: .env
     init: true
     ports:

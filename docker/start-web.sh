@@ -1,6 +1,17 @@
 #!/bin/bash
 set -Eeuo pipefail
 
+# Fail with an actionable message before launching either server.
+php -r '
+require "/var/www/html/src/bootstrap.php";
+try {
+    Camagru\Config::validateStartup();
+} catch (Throwable $error) {
+    fwrite(STDERR, "Configuration error: " . $error->getMessage() . PHP_EOL);
+    exit(1);
+}
+'
+
 # Both masters receive graceful shutdown signals; Docker's init reaps orphans.
 shutdown() {
     trap '' TERM INT QUIT

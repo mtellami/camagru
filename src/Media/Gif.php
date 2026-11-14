@@ -9,6 +9,7 @@ use Camagru\Http\HttpError;
 /** Assembles only single-frame GIFs encoded by our own GD pipeline. */
 final class Gif
 {
+    /** Combine GD-generated GIF frames into a looping animation with a centisecond delay. */
     public static function assemble(array $frames, int $delay = 25): string
     {
         if (count($frames) < 2 || count($frames) > 8) {

@@ -1,3 +1,4 @@
+/** Center-crop the current video frame into a JPEG Blob for upload. */
 export function captureFrame(video, width, height, done) {
     const canvas = document.createElement('canvas');
     canvas.width = width;

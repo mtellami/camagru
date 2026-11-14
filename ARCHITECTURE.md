@@ -1,265 +1,285 @@
 # Camagru architecture
 
-This guide follows the app from the screen a user sees to the JavaScript, PHP, database, and files that make it work. Paths link to the implementation in this repository.
+This guide follows a user action from the browser UI through JavaScript, PHP, PostgreSQL, and media storage. Every linked path points to the implementation in this repository.
 
 ## 1. The whole app
 
-Camagru is a server-rendered PHP 8.4 app with PostgreSQL and native JavaScript modules. PHP builds the initial HTML; JavaScript adds camera capture, previews, gallery loading, and form updates. There is no JavaScript build step or framework router.
+Camagru uses PHP 8.4, PostgreSQL, and native JavaScript modules. PHP renders the initial page. JavaScript adds camera capture, previews, gallery loading, and form updates. There is no frontend build step.
 
 ```mermaid
 flowchart TD
-    User[User in browser] --> Nginx[Nginx]
-    Nginx -->|Static assets| Assets[public/assets: CSS, JS, stickers]
-    Nginx -->|Application routes via PHP-FPM| Entry[public/index.php]
-    Entry --> Bootstrap[src/bootstrap.php: autoload and error handling]
-    Entry --> App[src/Http/App.php: routing and feature logic]
-    App --> Auth[src/Security/Auth.php: sessions and validation]
-    App --> Http[src/Http/Http.php: HTML, JSON, redirects]
-    Http --> Views[src/views: page templates and layout]
-    Views -->|HTML| User
-    Assets -->|app.js initializes browser behavior| User
-    User -->|Forms or XMLHttpRequest| Nginx
-    App --> DB[src/Database/Database.php: PDO queries]
+    Browser[Browser] --> Nginx[Nginx]
+    Nginx -->|Static files| Assets[public/assets]
+    Nginx -->|PHP-FPM| Entry[public/index.php]
+    Entry --> App[src/App.php: request checks and routing]
+    App --> Controllers[Http/Controllers: feature actions]
+    Controllers --> Auth[Security/Auth.php]
+    Controllers --> Http[Http/Http.php: responses]
+    Http --> Views[src/Views: templates and layout]
+    Views -->|HTML| Browser
+    Controllers --> Repository[Repositories/PhotoRepository.php: shared photo reads]
+    Repository --> DB[Database/Database.php]
+    Controllers --> DB
     Auth --> DB
     DB --> PG[(PostgreSQL)]
-    App --> Images[src/Media/Images.php: publish and serve media metadata]
-    Images --> DB
-    Images --> Files[(storage/media)]
-    Entry -->|Shutdown hook| Maintenance[src/Maintenance.php]
-    Maintenance --> Outbox[src/Mail/Outbox.php]
+    Controllers --> Publisher[Media/PhotoPublisher.php]
+    Publisher --> Images[Media/Images.php: decode and composite]
+    Publisher --> Gif[Media/Gif.php: assemble animation]
+    Publisher --> DB
+    Publisher --> Disk[(storage/media)]
+    Entry -->|Request shutdown| Maintenance[Maintenance.php]
+    Maintenance --> Publisher
+    Maintenance --> Outbox[Mail/Outbox.php]
     Outbox --> DB
-    Outbox -->|PHP mail and msmtp| Mailpit[Mailpit inbox]
-    Maintenance -->|Cleanup| Images
+    Outbox -->|PHP mail and msmtp| Mailpit[Mailpit]
 ```
 
-The main feature coordinator is [`App.php`](src/Http/App.php). Its methods contain routing, SQL, and business decisions directly. [`Database.php`](src/Database/Database.php) provides connection, prepared-query, and transaction helpers; it does not define models or feature-specific repositories.
+[`App.php`](src/App.php) dispatches URLs and applies shared checks. Feature behavior lives in [`Http/Controllers/`](src/Http/Controllers/). Controllers use [`PhotoRepository.php`](src/Repositories/PhotoRepository.php) for shared photo reads and [`Database.php`](src/Database/Database.php) for other prepared queries and transactions. There is no ORM.
 
-## 2. From a page request to visible UI
+## 2. How PHP gets JavaScript running in the browser
+
+**PHP generates HTML. The browser reads that HTML, downloads JavaScript, and executes it.** PHP does not directly call JavaScript functions.
+
+[`Http::render()`](src/Http/Http.php) renders a page template inside [`layout.php`](src/Views/layout.php). The layout includes this module entry point:
+
+```html
+<script type="module" src="/assets/js/app.js?v=24"></script>
+```
+
+The query parameter versions the entry URL. The browser requests this file from Nginx, then downloads its imported modules. Module scripts execute after the HTML has been parsed, so the initializers can find the page's elements.
+
+[`app.js`](public/assets/js/app.js) imports and calls `initUi()`, `initAuth()`, `initGallery()`, `initForms()`, `initSettings()`, `initPhoto()`, and `initEditor()`. An initializer attaches event listeners to matching elements or uses delegated events on `document`. For example, `initEditor()` returns immediately unless it finds `#editor`.
 
 ```mermaid
 sequenceDiagram
     actor User
     participant Browser
     participant Nginx
-    participant Entry as public/index.php
-    participant App as App::run()
-    participant Auth as Auth.php
-    participant DB as Database.php / PostgreSQL
-    participant View as Http::render() / views
-    User->>Browser: Open /gallery
-    Browser->>Nginx: GET /gallery
-    Nginx->>Entry: Forward to PHP-FPM
-    Entry->>App: Bootstrap and run
-    App->>Auth: Start session
-    App->>DB: gallery(): ready photos, authors, counts, liked state
-    DB-->>App: First 10 photos and next cursor
-    App->>View: Render gallery.php inside layout.php
-    View-->>Browser: HTML, CSRF metadata, app.js reference
-    Browser->>Nginx: Load CSS and native JS modules
-    Browser->>Browser: app.js calls feature initializers
-    User->>Browser: Scroll or click Load more
-    Browser->>App: GET /gallery?before=cursor, Accept: application/json
-    App->>DB: gallery(): next batch
-    App-->>Browser: JSON with photos and next cursor
-    Browser->>Browser: gallery.js appends cards
+    participant PHP as PHP controllers and Http.render
+    participant Layout as Views/layout.php
+    participant JS as app.js and imported modules
+    User->>Browser: Open a page
+    Browser->>Nginx: GET page URL
+    Nginx->>PHP: Execute public/index.php through PHP-FPM
+    PHP->>Layout: Render page inside layout
+    Layout-->>Browser: HTML including module script tag
+    Browser->>Nginx: GET /assets/js/app.js and its imports
+    Nginx-->>Browser: JavaScript files
+    Browser->>JS: Execute module and call initializers
+    JS->>Browser: Attach event listeners to rendered elements
+    User->>Browser: Click a button or submit a form
+    Browser->>JS: Run the registered listener
+    opt Action needs server data
+        JS->>PHP: New HTTP request through api.js
+        PHP-->>JS: JSON response
+        JS->>Browser: Update the visible page
+    end
 ```
 
-- [`public/index.php`](public/index.php) is the front controller: it boots the app, catches exceptions, formats errors, and registers request maintenance.
-- [`src/bootstrap.php`](src/bootstrap.php) maps `Camagru\...` classes to `src/`, sets UTC, and converts reportable PHP errors into exceptions.
-- [`App::run()`](src/Http/App.php) sets HTTP security headers, starts the session, chooses the route, and checks CSRF for POST requests. HEAD requests use GET handling.
-- [`Http::render()`](src/Http/Http.php) renders the selected page, then inserts it into [`layout.php`](src/views/layout.php). The layout supplies navigation, CSRF metadata, stylesheets, notifications, and the module entry point.
-- [`app.js`](public/assets/js/app.js) calls `initUi`, `initAuth`, `initGallery`, `initPhoto`, and `initEditor`. Initializers use matching elements or delegated events to attach behavior.
+Changing a button's HTML starts in a PHP view. Changing what happens when it is clicked starts in the JavaScript module that registers its listener.
 
 ## 3. Which screen uses which code?
 
-All application routes below are handled in [`src/Http/App.php`](src/Http/App.php). `{id}` means a positive numeric photo ID.
+All URLs are dispatched in [`App.php`](src/App.php). `{id}` denotes a positive numeric photo ID. All POST requests pass the shared CSRF check before reaching a controller.
 
-| User-facing screen or action | UI and browser code | Route and PHP responsibility |
+| Screen or action | Template / browser behavior | Responsible PHP code |
 | --- | --- | --- |
-| Home | [`home.php`](src/views/home.php) | `GET /` → `run()` renders the home page. |
-| Public gallery | [`gallery.php`](src/views/gallery.php), [`partials/card.php`](src/views/partials/card.php), [`gallery.js`](public/assets/js/gallery.js) | `GET /gallery` → `gallery()` selects ready photos; returns HTML or JSON according to `Accept`. |
-| Photo and comments | [`photo.php`](src/views/photo.php), [`photo.js`](public/assets/js/photo.js) | `GET /photos/{id}` → `photo()` loads a ready photo; `run()` loads comments in pages of 20. |
-| Editor and personal history | [`editor.php`](src/views/editor.php), [`editor.js`](public/assets/js/editor.js), [`camera.js`](public/assets/js/camera.js), [`gallery.js`](public/assets/js/gallery.js) | `GET /editor` requires login and loads owner history; `GET /editor/photos` serves owner-filtered history as HTML or JSON. |
-| Publish photo or GIF | Editor forms and `editor.js` | `POST /photos` or `/photos/gif` → `post()` checks login and limits, then calls `Images::publish()`. |
-| Sticker catalog | Editor template reads `Images::OVERLAYS`; browser previews PNG assets | `GET /overlays` also exposes that catalog as JSON. |
-| Like / unlike | Card or photo form; delegated handler in `photo.js` | `POST /photos/{id}/like` or `/unlike` → `interact()` updates `likes` and returns liked state and count. |
-| Add comment | Photo form and `photo.js` | `POST /photos/{id}/comments` → `interact()` validates and inserts a comment; optionally queues email. |
-| Delete own comment | Photo template, `photo.js`, confirmation dialog | `POST /photos/{id}/comments/{commentId}/delete` → `post()` deletes only a comment owned by the current user. |
-| Delete own creation | Photo menu and `photo.js` | `POST /photos/{id}/delete` → `interact()` checks ownership and marks the photo `deleting`; maintenance removes files and row. |
-| Register, login, recovery, confirmation | [`auth.php`](src/views/auth.php), [`auth.js`](public/assets/js/auth.js) | GET renders `/register`, `/login`, `/forgot`, `/resend`, `/verify`, `/reset`; POST to those routes performs the action in `post()` with `Auth` helpers. |
-| Logout | Form in `layout.php` | `POST /logout` → `Auth::logout()`, then home redirect. |
-| Account settings | [`settings.php`](src/views/settings.php), `auth.js`; notification form handled by `photo.js` | `GET /settings`; POST `/settings/username`, `/settings/email`, `/settings/password`, `/settings/notifications` → `settings()`. |
-| Image bytes | Image URLs in templates and generated cards | `GET /media/{id}/image`, `/thumb`, `/poster` → `media()` checks a ready photo and streams a file from private storage. |
-| Error page | [`error.php`](src/views/error.php) | `public/index.php` catches failures and sends an HTML error or JSON error envelope. |
-| Service readiness | No UI | `GET /health` runs `SELECT 1` and returns JSON; skips maintenance. |
+| Home: `GET /` | [home.php](src/Views/home.php) | `App::run()` renders the page. |
+| Gallery: `GET /gallery` | [gallery.php](src/Views/gallery.php), [partials/card.php](src/Views/partials/card.php), [gallery.js](public/assets/js/gallery.js) | [GalleryController::show()](src/Http/Controllers/GalleryController.php) and `PhotoRepository::gallery()`. |
+| Editor: `GET /editor` | [editor.php](src/Views/editor.php), [editor.js](public/assets/js/editor.js), [camera.js](public/assets/js/camera.js) | [EditorController::show()](src/Http/Controllers/EditorController.php) requires login and loads personal history. |
+| Personal history: `GET /editor/photos` | History grid and `gallery.js` | `GalleryController::show(true)` returns owner-filtered HTML or JSON. |
+| Sticker catalog: `GET /overlays` | Editor reads the same catalog directly while rendering | `EditorController::overlays()` exposes `Images::OVERLAYS` as JSON. |
+| Publish: `POST /photos` or `/photos/gif` | Editor forms and `editor.js` | `EditorController::publish()` checks login and limits, then calls `PhotoPublisher::publish()`. |
+| Photo: `GET /photos/{id}` | [photo.php](src/Views/photo.php), [photo.js](public/assets/js/photo.js), [forms.js](public/assets/js/forms.js) | [PhotoController::show()](src/Http/Controllers/PhotoController.php) loads a ready photo and comments in pages of 20. |
+| Like/unlike: `POST /photos/{id}/like` or `/unlike` | Card/photo form and `forms.js` | `PhotoController::interact()` saves liked state and returns its count. |
+| Comment: `POST /photos/{id}/comments` | Photo form and `forms.js` | `PhotoController::interact()` inserts a comment and optionally queues email. |
+| Delete comment: `POST /photos/{id}/comments/{commentId}/delete` | Photo template, dialog, and `forms.js` | `PhotoController::deleteComment()` permits only the comment's owner. |
+| Delete creation: `POST /photos/{id}/delete` | Photo menu and `forms.js` | `PhotoController::interact()` checks ownership and marks the photo `deleting`. |
+| Accounts: `/register`, `/login`, `/forgot`, `/resend`, `/verify`, `/reset` | [auth.php](src/Views/auth.php), [auth.js](public/assets/js/auth.js) | [AuthController](src/Http/Controllers/AuthController.php): GET → `show()`; POST → `register()`, `login()`, `requestEmail()`, `verify()`, or `reset()`. |
+| Logout: `POST /logout` | Navigation form in `layout.php` | `AuthController::logout()`. |
+| Settings: `GET /settings` | [settings.php](src/Views/settings.php), [settings.js](public/assets/js/settings.js), password visibility in `auth.js` | [SettingsController::show()](src/Http/Controllers/SettingsController.php). |
+| Update settings: POST `/settings/username`, `/email`, `/password`, `/notifications` | Settings forms, notification AJAX handled by `forms.js` | `SettingsController::update()` applies the selected preference. Each URL includes the `/settings` prefix. |
+| Media: `GET /media/{id}/image`, `/thumb`, `/poster` | Image URLs in templates/cards | `PhotoController::media()` streams files only for ready photos. |
+| Health: `GET /health` | No UI | `App::run()` executes `SELECT 1` and returns JSON without maintenance. |
+| Errors | [error.php](src/Views/error.php) or form feedback | [public/index.php](public/index.php) catches failures and formats HTML or JSON. |
 
-### Shared browser responsibilities
+### Shared browser code
 
-| File | Responsibility |
+| Module | Responsibility |
 | --- | --- |
-| [`api.js`](public/assets/js/api.js) | `request()` sends XMLHttpRequest with `Accept: application/json` and a CSRF header on POST; interprets JSON success/errors. `token()` reads layout metadata; `randomKey()` creates submission keys. |
-| [`ui.js`](public/assets/js/ui.js) | Toasts, form status and busy state, menu dismissal, dialog closing, and back navigation. |
-| [`dom.js`](public/assets/js/dom.js), [`icons.js`](public/assets/js/icons.js) | DOM/SVG construction helpers and shared icon paths. |
-| [`auth.js`](public/assets/js/auth.js) | Password visibility, password-rule feedback and confirmation checks, settings navigation state. Server-side validation remains in `Auth.php`. |
-| [`photo.js`](public/assets/js/photo.js) | Handles forms with `data-ajax` across the app, including gallery likes and notification preferences; also manages photo sharing and comment deletion confirmation. |
-| [`style.css`](public/assets/css/style.css), [`theme.css`](public/assets/css/theme.css) | Shared styling and visual presentation; both are loaded by the layout. |
+| [app.js](public/assets/js/app.js) | Import modules and call their initializers. |
+| [api.js](public/assets/js/api.js) | XMLHttpRequest, JSON responses, CSRF header, and random submission keys. |
+| [forms.js](public/assets/js/forms.js) | Handle forms marked `data-ajax`, including likes, comments, deletion, and notification preferences. |
+| [photo.js](public/assets/js/photo.js) | Photo sharing popover and copying links/embed snippets. |
+| [settings.js](public/assets/js/settings.js) | Settings sidebar selection. |
+| [auth.js](public/assets/js/auth.js) | Password visibility and account password-rule feedback. |
+| [ui.js](public/assets/js/ui.js) | Toasts, busy/status messages, menus, dialogs, and back navigation. |
+| [dom.js](public/assets/js/dom.js), [icons.js](public/assets/js/icons.js) | Shared DOM/SVG construction and icon definitions. |
+| [style.css](public/assets/css/style.css), [theme.css](public/assets/css/theme.css) | Shared layout and visual styling, loaded by `layout.php`. |
 
-### HTML forms and JSON share the same endpoints
+### HTML forms and JSON use the same endpoints
 
-Authentication and most settings forms submit normally. Forms marked `data-ajax` are intercepted by `photo.js`; editor submissions use `editor.js`. [`Http::success()`](src/Http/Http.php) responds based on the request:
+Authentication and most settings forms submit normally. `forms.js` intercepts `data-ajax` forms, while `editor.js` handles publishing. [`Http::success()`](src/Http/Http.php) responds according to `Accept`:
 
-- With `Accept: application/json`: `{ok: true, data: {message, redirect, ...}}`. JavaScript decides how to update the screen or follow the redirect.
-- With a normal form submission: store a flash message and send a `303` redirect.
-- Failures caught by `index.php`: JSON `{ok: false, error: {code, message, fields}}` or an HTML error page. Expected native login errors redirect back to `/login` with a session-stored message.
+- `application/json`: `{ok: true, data: {message, redirect, ...}}`. JavaScript decides how to update the screen or follow a redirect.
+- Normal form: store a flash message and issue a `303` redirect.
+- Errors caught by `index.php`: JSON `{ok: false, error: {code, message, fields}}` or an HTML error page. Expected native login errors redirect to `/login` with a session-stored message.
 
 ## 4. Taking or uploading a photo / GIF
 
 ```mermaid
 sequenceDiagram
     actor User
-    participant UI as editor.php / editor.js
+    participant UI as editor.php and editor.js
     participant Camera as camera.js
     participant API as api.js
-    participant App as App::post()
+    participant Controller as EditorController
+    participant Publisher as PhotoPublisher
     participant Images as Images.php
     participant Gif as Gif.php
     participant DB as PostgreSQL
     participant Disk as storage/media
     User->>UI: Enable camera or select JPEG/PNG files
     opt Camera source
-        UI->>Camera: captureFrame(video, width, height)
+        UI->>Camera: captureFrame with target dimensions
         Camera-->>UI: Cropped JPEG Blob
     end
     User->>UI: Choose stickers and publish
-    UI->>API: FormData: image or frames[], overlay[], submission
-    API->>App: POST /photos or /photos/gif + CSRF
-    App->>App: Check CSRF, login, rate limit, overlays
-    App->>Images: publish(userId, overlays, submission, gif)
-    Images->>DB: Check submission key and insert staging photo
+    UI->>API: FormData with images, stickers, and submission key
+    API->>Controller: POST /photos or /photos/gif with CSRF
+    Controller->>Controller: Check login, rate limit, and overlays
+    Controller->>Publisher: publish
+    Publisher->>DB: Check submission key and insert staging row
     loop Each input image
-        Images->>Images: Validate, decode, orient, crop, composite stickers
-        Images->>Disk: First frame: JPEG poster and thumbnail
+        Publisher->>Images: upload and composite
+        Images-->>Publisher: Validated and composed canvas
+        opt First frame
+            Publisher->>Disk: Save JPEG poster and thumbnail
+        end
     end
     opt GIF mode
-        Images->>Gif: assemble(GD-encoded frames)
-        Gif-->>Images: Looping GIF bytes
-        Images->>Disk: Write GIF
+        Publisher->>Gif: assemble GD-encoded frames
+        Gif-->>Publisher: Looping GIF bytes
+        Publisher->>Disk: Save GIF
     end
-    Images->>DB: Set photo state to ready
-    Images-->>App: Photo row
-    App-->>API: 201 JSON with photo and redirect
+    Publisher->>DB: Set photo state to ready
+    Publisher-->>Controller: Photo row
+    Controller-->>API: 201 JSON with photo and redirect
     API-->>UI: Success callback
-    UI->>UI: Add personal-history thumbnail, refresh submission key, show toast
+    UI->>UI: Add history thumbnail, refresh submission key, show toast
 ```
 
-[`editor.js`](public/assets/js/editor.js) owns camera permission, source switching, photo/GIF mode, sticker previews, uploaded frame previews, and an eight-frame camera burst. [`camera.js`](public/assets/js/camera.js) only captures a centered crop into a canvas and encodes it as JPEG. Sticker previews are browser layers; the server applies the actual stickers to the saved output.
+[`editor.js`](public/assets/js/editor.js) owns camera permission, source switching, modes, sticker previews, uploaded frame previews, and eight-frame camera bursts. [`camera.js`](public/assets/js/camera.js) center-crops video to a canvas and encodes a JPEG Blob. Browser sticker layers provide a preview. PHP applies the actual layers to the saved output.
 
-[`Images.php`](src/Media/Images.php) owns the authoritative pipeline:
+[`Images.php`](src/Media/Images.php) handles image operations:
 
-1. `overlays()` accepts only catalog entries, removes duplicates, and preserves their order.
-2. `publish()` validates the submission key and returns an existing ready result for a repeated submission. The database also enforces uniqueness per user.
-3. `upload()` / `decode()` check uploaded-file provenance, actual MIME type, size, dimensions, decoding, and JPEG EXIF orientation.
-4. `composite()` crops/resizes the source and layers sticker PNGs in picker order. Photos are **1280 × 960**; GIF frames are **480 × 360**.
-5. The first composed frame produces a JPEG poster and **320 × 240** thumbnail. [`Gif::assemble()`](src/Media/Gif.php) combines server-generated GIF frames into a looping animation, normally 250 ms per frame.
-6. Files are written through `.tmp` files and renamed; only then is the row marked `ready`. A caught publishing failure removes tracked output files and the staging row.
+- `overlays()` validates catalog entries and removes duplicates while preserving order.
+- `upload()` checks PHP upload provenance. `decode()` checks MIME, size, dimensions, decoding, and JPEG EXIF orientation.
+- `composite()` crops/resizes and applies sticker layers. Photos are **1280 × 960**; GIF frames are **480 × 360**.
 
-Each input is limited to 5 MiB, 12 megapixels, and 6000 pixels per side. A GIF requires 2–8 JPEG/PNG input frames, at most 20 MiB combined. The complete POST is limited to 24 MiB. Browser checks provide feedback; PHP enforces the constraints.
+[`PhotoPublisher.php`](src/Media/PhotoPublisher.php) coordinates persistence:
 
-### Media storage and lifecycle
+1. Validate the submission key and return an existing ready result for a retry. The database enforces uniqueness per user.
+2. Insert a `staging` row and process the uploaded images with `Images`.
+3. Save a first-frame JPEG poster and **320 × 240** thumbnail. For GIFs, [`Gif::assemble()`](src/Media/Gif.php) combines server-generated frames into a looping animation, normally 250 ms per frame.
+4. Write files through temporary paths and rename them, then mark the row `ready`. A caught failure removes tracked outputs and the staging row.
 
-The database stores metadata and a random `media_key`. Encoded media lives outside `public/`:
+Each input is limited to 5 MiB, 12 megapixels, and 6000 pixels per side. GIFs require 2–8 JPEG/PNG frames, at most 20 MiB combined. The complete POST is limited to 24 MiB. PHP enforces these limits independently of browser feedback.
 
-| File under `storage/media/` | Served through |
+### Media files and lifecycle
+
+The database stores metadata and a random `media_key`. Encoded files live outside `public/`:
+
+| File under `storage/media/` | URL |
 | --- | --- |
-| `{media_key}.jpg` | `/media/{id}/poster`; also `/media/{id}/image` for a photo |
+| `{media_key}.jpg` | `/media/{id}/poster`, and `/media/{id}/image` for a photo |
 | `{media_key}-thumb.jpg` | `/media/{id}/thumb` |
 | `{media_key}.gif` | `/media/{id}/image` for a GIF |
 
-[`App::media()`](src/Http/App.php) looks up a ready photo before streaming bytes. Gallery and individual photo queries also require `state='ready'`.
+`PhotoRepository::find()` and `gallery()` expose only ready rows. `PhotoController::media()` checks the row before streaming bytes.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> staging: Images.publish inserts metadata
-    staging --> ready: All output files saved
-    staging --> [*]: Publishing error removes row and files
-    staging --> [*]: Maintenance removes staging older than 10 minutes
+    [*] --> staging: Publisher inserts metadata
+    staging --> ready: Output files saved
+    staging --> [*]: Publishing failure removes row and files
+    staging --> [*]: Maintenance removes abandoned staging after 10 minutes
     ready --> deleting: Owner submits delete
     deleting --> [*]: Maintenance removes files and database row
 ```
 
-## 5. Accounts, sessions, and email confirmation
+## 5. Accounts, sessions, and confirmation
 
 ```mermaid
 sequenceDiagram
     actor User
     participant UI as auth.php
-    participant App as App.php
+    participant Controller as AuthController
     participant Auth as Auth.php
     participant DB as PostgreSQL
     participant Outbox as Outbox.php
     participant Maintenance as Request shutdown maintenance
     participant Inbox as Mailpit
     User->>UI: Submit registration form
-    UI->>App: POST /register + CSRF
-    App->>Auth: Rate limit, validate input, and hash password
-    App->>DB: Transaction: insert unverified user
-    App->>Auth: token(userId, verify)
-    Auth->>DB: Store SHA-256 token hash and expiry
+    UI->>Controller: POST /register with CSRF
+    Controller->>Auth: Validate input, rate limit, and hash password
+    Controller->>DB: Begin transaction and insert unverified user
+    Controller->>Auth: Create verification token
+    Auth->>DB: Store token hash and expiry
     Auth->>Outbox: Queue confirmation email with raw token link
-    Outbox->>DB: Store encrypted email payload in same transaction
-    App-->>User: Redirect to login with inbox message
-    Maintenance->>Outbox: once(): claim committed job
-    Outbox->>Inbox: PHP mail → msmtp → SMTP
-    User->>App: GET /verify?token=...
-    App-->>User: Confirmation form
-    User->>App: POST /verify + token, purpose, CSRF
-    App->>Auth: consume(): lock and validate token, mark consumed
-    Auth->>DB: Set verified_at in same transaction
-    User->>App: POST /login
-    App->>Auth: Verify password and confirmed account, then login()
+    Outbox->>DB: Store encrypted payload in same transaction
+    Controller->>DB: Commit
+    Controller-->>User: Redirect to login with inbox message
+    Maintenance->>Outbox: Claim committed delivery job
+    Outbox->>Inbox: Deliver through PHP mail and msmtp
+    User->>Controller: GET /verify with token
+    Controller-->>User: Confirmation form
+    User->>Controller: POST /verify with token, purpose, and CSRF
+    Controller->>Auth: Consume token and apply confirmation callback
+    Auth->>DB: Lock token, mark consumed, and set verified_at atomically
+    User->>Controller: POST /login
+    Controller->>Auth: Verify password and confirmed account, then log in
     Auth->>Auth: Regenerate session ID and CSRF token
-    App-->>User: Redirect to editor
+    Controller-->>User: Redirect to editor
 ```
 
-[`Auth.php`](src/Security/Auth.php) owns session cookies, CSRF/origin checks, current-user lookup, login requirements, rate limiting, input validation, Argon2id password hashing, and token creation/consumption. `App.php` decides which account action to perform and updates the relevant rows.
+[`AuthController.php`](src/Http/Controllers/AuthController.php) coordinates account actions. [`Auth.php`](src/Security/Auth.php) owns session cookies, CSRF/origin checks, current-user lookup, login requirements, rate limits, validation, Argon2id hashing, and token creation/consumption. [`SettingsController.php`](src/Http/Controllers/SettingsController.php) coordinates preference changes.
 
-- Sessions are stored in `storage/sessions`; the cookie contains the session ID. `Auth::user()` checks that the user is verified and the session's `auth_version` matches the database.
-- Sessions expire after 30 minutes idle or 24 hours total. Login and logout regenerate the session ID and CSRF token.
-- Reset tokens last 30 minutes; confirmation and email-change tokens last 24 hours. Only token hashes are stored in `account_tokens`; the raw link is included in the encrypted outbox payload.
-- Opening `/verify` or `/reset` renders a form. The POST consumes the token and makes the change inside a transaction.
-- Password reset increments `auth_version` and logs the requester out. Changing a password in settings invalidates other sessions and refreshes the current session.
-- Changing an email requires the current password and confirmation at the new address before the stored email changes. Changing username or notification preference does not require the current password.
+- Sessions live in `storage/sessions`. Cookies hold a session ID. `Auth::user()` checks verification and compares session `auth_version` against the database.
+- Sessions expire after 30 minutes idle or 24 hours total. Login/logout regenerate session IDs and CSRF tokens.
+- Reset tokens expire after 30 minutes. Confirmation/email-change tokens last 24 hours. `account_tokens` stores hashes, while raw links are included in encrypted email payloads.
+- GET `/verify` or `/reset` renders a form. POST consumes the token and applies the change inside a transaction.
+- Password reset increments `auth_version` and signs the requester out. Changing a password in settings invalidates other sessions while refreshing the current session.
+- Email changes require the current password and confirmation at the new address. Username and notification changes do not require the current password.
 
 ## 6. Likes, comments, and request-driven maintenance
 
-[`App::interact()`](src/Http/App.php) requires login and locks a ready photo row inside a database transaction. It inserts/removes likes, validates comments, or verifies ownership before marking a photo for deletion. Comment deletion has its own branch in `post()` and checks comment ownership in SQL.
-
-Likes have a composite primary key, so one user can like a photo once. Comments have a unique `(user_id, submission_key)` to prevent duplicate inserts on retries. Comment text is limited to 1–1000 characters. If the owner's `notify_comments` setting is enabled, a newly inserted comment queues an email in the same transaction.
+[`PhotoController::interact()`](src/Http/Controllers/PhotoController.php) requires login and locks a ready photo in a transaction. Likes use a composite primary key. Comments accept 1–1000 characters and have a unique `(user_id, submission_key)` to deduplicate retries. A new comment queues mail in the same transaction when the owner has notifications enabled. `deleteComment()` checks ownership in its DELETE query.
 
 ```mermaid
 flowchart LR
-    Action[Registration, recovery, email change, or comment] --> Transaction[Database transaction]
+    Action[Account action or new comment] --> Transaction[Database transaction]
     Transaction --> Change[(Account or comment change)]
-    Transaction --> Queue[(Encrypted email_outbox job)]
+    Transaction --> Queue[(Encrypted outbox job)]
     Shutdown[index.php shutdown hook] --> Maintenance[Maintenance.run]
-    Maintenance --> Delivery[Outbox.once: lease pending job]
+    Maintenance --> Delivery[Outbox.once claims a due job]
     Queue --> Delivery
     Delivery --> Check[Check expiry and comment eligibility]
     Check --> Send[Email.encode, PHP mail, msmtp]
-    Send --> Mailpit[Mailpit SMTP on port 1025]
-    Delivery --> Result[Mark handled, or schedule retry]
-    Maintenance --> Cleanup[Images.cleanup and expired-record cleanup]
+    Send --> Mailpit[Mailpit SMTP]
+    Delivery --> Result[Record completion or retry]
+    Maintenance --> Cleanup[PhotoPublisher.cleanup and expired-record cleanup]
 ```
 
-[`Email.php`](src/Mail/Email.php) builds account/comment messages, renders [`views/emails/message.php`](src/views/emails/message.php), and encodes plain-text/HTML mail. [`Outbox.php`](src/Mail/Outbox.php) encrypts queued payloads with `APP_KEY`, deduplicates by event key, leases jobs with `FOR UPDATE SKIP LOCKED`, and sends them through PHP `mail()`.
+[`Email.php`](src/Mail/Email.php) builds account/comment messages, renders [`Views/emails/message.php`](src/Views/emails/message.php), and encodes plain-text/HTML mail. [`Outbox.php`](src/Mail/Outbox.php) encrypts payloads with `APP_KEY`, deduplicates events, leases jobs with `FOR UPDATE SKIP LOCKED`, and sends through PHP `mail()`.
 
-[`Maintenance::run()`](src/Maintenance.php) runs from the front controller's shutdown hook for non-health application requests whose response status is below 500. It processes at most five outbox jobs, then acquires a PostgreSQL advisory lock for file cleanup and expired rate-limit/token cleanup. There is no separate worker or scheduler in the current Compose setup: pending delivery retries and cleanup depend on subsequent application requests.
+[`Maintenance::run()`](src/Maintenance.php) runs at shutdown for non-health application requests with response status below 500. It processes at most five outbox jobs, then uses a PostgreSQL advisory lock to serialize media cleanup and expired rate-limit/token cleanup. There is no separate worker: retries and cleanup depend on application requests.
 
-Delivery failures retry with exponential delays starting at 30 seconds; after five failed attempts the job is marked failed. Before sending comment mail, the outbox rechecks that the comment exists, the photo is ready, and the owner still wants notifications. Handled jobs have their payload cleared; expired or ineligible messages are skipped.
+Mail failures retry with exponential delays starting at 30 seconds and stop after five failed attempts. Comment delivery rechecks that the comment exists, its photo is ready, and its owner still wants notifications. Handled jobs have their payload cleared. Expired/ineligible messages are skipped.
 
 ## 7. Database relationships
 
-Defined in [`src/Database/schema.sql`](src/Database/schema.sql):
+Defined in [`schema.sql`](src/Database/schema.sql):
 
 ```mermaid
 erDiagram
@@ -277,7 +297,6 @@ erDiagram
         varchar email
         varchar password_hash
         timestamptz verified_at
-        boolean notify_comments
         integer auth_version
     }
     photos {
@@ -305,7 +324,6 @@ erDiagram
         varchar purpose
         char token_hash UK
         timestamptz expires_at
-        timestamptz consumed_at
     }
     email_outbox {
         bigint id PK
@@ -314,7 +332,6 @@ erDiagram
         varchar event_key UK
         text payload
         integer attempts
-        timestamptz lease_until
         timestamptz next_attempt_at
     }
     rate_limits {
@@ -324,52 +341,84 @@ erDiagram
     }
 ```
 
-This diagram shows selected columns. `rate_limits` is independent: its key is an HMAC of an action and an IP address or other subject. Username/email uniqueness is case-insensitive. Deleting a photo row cascades to its likes and comments; deleting a comment cascades to its linked outbox records.
+Selected columns are shown. `rate_limits` is independent: its key is an HMAC of action and subject. Username/email uniqueness is case-insensitive. Photo deletion cascades to likes/comments, and comment deletion cascades to linked outbox rows. Photo and comment submission keys are unique per user.
 
-## 8. Local runtime and infrastructure
+## 8. Folders, runtime, and infrastructure
+
+```text
+src/
+├── bootstrap.php                 Class loading, UTC, PHP error conversion
+├── App.php                       Routing and shared request checks
+├── Config.php                    Environment values and filesystem/URL paths
+├── Maintenance.php               Request-driven delivery and cleanup
+├── Http/
+│   ├── Http.php                  HTML, JSON, redirects, escaping, headers
+│   ├── HttpError.php             Expected HTTP failures
+│   └── Controllers/              Account, settings, gallery, editor, photo actions
+├── Repositories/
+│   └── PhotoRepository.php       Shared photo lookup and pagination
+├── Database/
+│   ├── Database.php              PDO and transactions
+│   └── schema.sql                Initial database schema
+├── Security/Auth.php             Sessions, passwords, CSRF, tokens, rate limits
+├── Media/
+│   ├── Images.php                Decode, crop, resize, stickers
+│   ├── PhotoPublisher.php        Publishing, files, database state, cleanup
+│   └── Gif.php                   Generated-frame animation assembly
+├── Mail/                         Email templates/encoding and encrypted outbox
+└── Views/                        PHP pages, shared partials, email template
+public/
+├── index.php                     Front controller and error boundary
+└── assets/                       Native JS modules, CSS, images
+storage/                          Private runtime files in Docker volume
+docker/                          Container build and runtime configuration
+```
 
 ```mermaid
 flowchart TD
-    Make[make up] --> Setup[tools/scripts/setup.php: create .env if missing]
-    Setup --> Compose[compose.yaml: build and start services]
-    Browser[Browser] -->|localhost:8080 by default| Nginx
+    Env[Developer prepares a valid .env] --> Compose[compose.yaml]
+    Make[make up] --> Compose
+    Compose --> Validation[Config.validateStartup before web servers start]
+    Browser[Browser] -->|Default localhost port 8080| Nginx
     subgraph Web[web container]
-        Nginx[Nginx: public document root] -->|FastCGI port 9000| PHP[PHP-FPM and app code]
+        Nginx[Nginx] -->|FastCGI port 9000| PHP[PHP-FPM and application]
         PHP --> MSMTP[msmtp]
     end
-    PHP -->|PDO PostgreSQL| DB[db container: PostgreSQL 17]
+    PHP --> DB[db container: PostgreSQL 17]
     DB --> DBVolume[(database volume)]
-    PHP --> Storage[(media volume: storage directory)]
+    PHP --> Storage[(media volume mounted at storage)]
     MSMTP -->|SMTP port 1025| Mail[mailpit container]
-    Browser -->|localhost:8025 by default| Mail
+    Browser -->|Default localhost port 8025| Mail
 ```
 
 | File | Responsibility |
 | --- | --- |
-| [`compose.yaml`](compose.yaml) | Defines `web`, `db`, and `mailpit`, ports, health checks, dependencies, and persistent `database` / `media` volumes. |
-| [`tools/docker/Dockerfile`](tools/docker/Dockerfile) | Builds PHP-FPM with Nginx, GD, PostgreSQL PDO, EXIF, mbstring, sodium, and msmtp; copies app code and prepares storage. |
-| [`tools/docker/nginx/nginx.conf`](tools/docker/nginx/nginx.conf) | Serves assets, routes application URLs to `public/index.php`, and permits only that PHP entry point to execute. |
-| [`tools/docker/start-web.sh`](tools/docker/start-web.sh) | Starts and supervises Nginx and PHP-FPM; stops both if either exits. |
-| [`tools/docker/php/php.ini`](tools/docker/php/php.ini), [`fpm.conf`](tools/docker/php/fpm.conf) | Upload/runtime limits, session and log storage, PHP mail transport, and FPM configuration. |
-| [`tools/docker/mail/msmtprc`](tools/docker/mail/msmtprc) | Routes outgoing mail to Mailpit SMTP. |
-| [`src/Config.php`](src/Config.php) | Reads environment variables and supplies repository root, storage, and absolute app URLs. |
-| [`tools/scripts/setup.php`](tools/scripts/setup.php), [`.env.example`](.env.example) | Create missing local configuration with generated secrets. |
-| [`Makefile`](Makefile) | `make up`, `make down`, `make logs`, and `make test`. |
+| [compose.yaml](compose.yaml) | Services, ports, health checks, startup dependencies, persistent database/media volumes. |
+| [Dockerfile](docker/Dockerfile) | PHP-FPM, Nginx, GD, PostgreSQL PDO, EXIF, mbstring, sodium, msmtp, copied source, and storage setup. |
+| [nginx.conf](docker/nginx/nginx.conf) | Serve assets and route app URLs to the only executable PHP entry point, `public/index.php`. |
+| [start-web.sh](docker/start-web.sh) | Validate environment, start/supervise Nginx and PHP-FPM, and stop both if either exits. |
+| [php.ini](docker/php/php.ini), [fpm.conf](docker/php/fpm.conf) | Runtime/upload limits, session/log paths, PHP mail transport, and FPM settings. |
+| [msmtprc](docker/mail/msmtprc) | Route SMTP to Mailpit. |
+| [Config.php](src/Config.php), [.env.example](.env.example) | Read and validate developer-supplied environment configuration. Startup requires an existing .env file and rejects missing values or placeholder secrets. |
+| [Makefile](Makefile) | Start, stop, and log commands. |
 
-The `media` volume mounts the entire `storage/` directory, including media, temporary storage, sessions, and PHP logs. PostgreSQL initializes a new database volume from `schema.sql`. App source is copied into the image, so code changes require rebuilding with `make up` in this setup.
+The `media` volume contains the whole `storage/` directory, including media, sessions, temporary files, and PHP logs. PostgreSQL initializes a new database volume using `schema.sql`. Existing volumes require an explicit schema update when the schema changes. This refactor changes no database schema. Source is copied into the image, so rebuild with `make up` after code changes.
 
 ## 9. Where to start when changing a feature
 
-| Intended change | Start here |
+| Change | Start here |
 | --- | --- |
-| Page markup or navigation | Relevant `src/views/*.php`; shared shell in `layout.php`. |
+| Page content/navigation | Relevant `src/Views` template and shared `layout.php`. |
 | Visual styling | `public/assets/css/style.css` and `theme.css`. |
-| Camera, source switching, GIF preview, editor state | `editor.js`; canvas capture in `camera.js`. |
-| Sticker selection or output composition | `editor.php`, `editor.js`, `Images::OVERLAYS`, `Images::composite()`, and `public/assets/images/overlays/`. |
-| Gallery ordering, filters, pagination | `App::gallery()` and `App::select()`; loading behavior in `gallery.js`. |
-| Likes, comments, deletion | `App::interact()` / `post()`, the relevant template, and `photo.js`. |
-| Account rules, sessions, tokens | `Auth.php` plus the relevant branch in `App::post()` or `settings()`. |
-| Email design or delivery | `Email.php`, `views/emails/message.php`, `Outbox.php`, and `Maintenance.php`. |
-| Data structure or constraints | `schema.sql`; existing database volumes need an explicit schema update because initialization only runs on new volumes. |
+| Browser startup | `layout.php` script tag → `app.js` imports/initializers. |
+| Camera/editor behavior | `editor.js` and `camera.js`. |
+| Stickers | `editor.php`, `editor.js`, `Images::OVERLAYS`, `Images::composite()`, and `public/assets/images/overlays/`. |
+| New/changed URL | `App.php` dispatch, then the responsible controller. |
+| Gallery/history ordering or pagination | `PhotoRepository::gallery()` and `gallery.js`. |
+| Likes/comments/delete | `PhotoController`, the template, and `forms.js`. |
+| Sharing | `photo.php` and `photo.js`. |
+| Accounts/settings | `AuthController` or `SettingsController`, `Auth.php`, and the matching template/browser module. |
+| Media publication | `EditorController::publish()` → `PhotoPublisher::publish()` → `Images` / `Gif`. |
+| Email | `Email.php`, `Views/emails/message.php`, `Outbox.php`, and `Maintenance.php`. |
 
-[`tools/scripts/test-overlays.php`](tools/scripts/test-overlays.php), run with `make test` while containers are running, checks sticker validation and composition at photo and GIF resolutions. Its scope is the overlay pipeline, rather than the full UI/account flow.
+Functions carry short comments explaining their purpose. Comments around non-obvious steps explain retry safety, authorization, file lifecycle, or transaction boundaries.

@@ -1,4 +1,5 @@
 let toastTimer;
+/** Display a temporary toast, replacing the previous notification timer. */
 export function notify(message) {
     const box = document.getElementById('toast');
     box.textContent = message;
@@ -9,6 +10,7 @@ export function notify(message) {
     }, 5500);
 }
 
+/** Show a form-local status message or fall back to a toast. */
 export function status(form, message, error) {
     const box = form.querySelector('.form-status');
     if (!box) {
@@ -18,11 +20,13 @@ export function status(form, message, error) {
     box.textContent = message;
     box.className = 'form-status' + (error ? ' error' : '');
 }
+/** Mark a form busy so handlers can prevent duplicate submissions. */
 export function busy(form, on) {
     form.classList[on ? 'add' : 'remove']('is-loading');
     form.setAttribute('aria-busy', on ? 'true' : 'false');
 }
 
+/** Attach shared navigation, menu, dialog, and initial-toast behavior. */
 export function initUi() {
     const initialToast = document.getElementById('toast');
     if (initialToast && !initialToast.hidden) {

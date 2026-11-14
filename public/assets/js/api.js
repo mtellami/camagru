@@ -1,6 +1,8 @@
+/** Read the CSRF token embedded by the PHP layout. */
 export function token() {
     return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 }
+/** Generate a submission key so retries can be deduplicated by the server. */
 export function randomKey() {
     const bytes = new Uint8Array(16);
     window.crypto.getRandomValues(bytes);
@@ -8,6 +10,7 @@ export function randomKey() {
         return ('0' + b.toString(16)).slice(-2);
     }).join('');
 }
+/** Send an asynchronous JSON request and deliver its result through a callback. */
 export function request(url, method, body, done) {
     const xhr = new XMLHttpRequest();
     xhr.open(method, url, true);

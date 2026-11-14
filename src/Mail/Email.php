@@ -8,6 +8,7 @@ use Camagru\Config;
 
 final class Email
 {
+    /** Encode plain-text and optional HTML content into MIME headers and body. */
     public static function encode(string $body, ?string $html = null): array
     {
         $headers = ['MIME-Version' => '1.0'];
@@ -31,6 +32,7 @@ final class Email
         return ['headers' => $headers, 'body' => $parts . '--' . $boundary . "--\r\n"];
     }
 
+    /** Build confirmation, recovery, or email-change message content. */
     public static function account(string $purpose, string $url): array
     {
         [$eyebrow, $heading, $description, $action, $note] = match ($purpose) {
@@ -59,6 +61,7 @@ final class Email
         return self::build($eyebrow, $heading, $description, $action, $url, $note);
     }
 
+    /** Build a comment notification linking to the affected photo. */
     public static function comment(string $username, string $comment, string $url): array
     {
         return self::build(
@@ -72,6 +75,7 @@ final class Email
         );
     }
 
+    /** Render matching plain-text and HTML versions of an email. */
     private static function build(
         string $eyebrow,
         string $heading,
@@ -93,7 +97,7 @@ final class Email
             $note .
             "\n\nCamagru — Ordinary moments. A little more playful.";
         ob_start();
-        require Config::root() . '/src/views/emails/message.php';
+        require Config::root() . '/src/Views/emails/message.php';
         $html = ob_get_clean();
         return compact('body', 'html');
     }

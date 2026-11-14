@@ -5,11 +5,11 @@ RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.l
     && docker-php-ext-install -j2 gd pdo_pgsql exif mbstring sodium \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /var/www/html
-COPY tools/docker/php/php.ini /usr/local/etc/php/conf.d/camagru.ini
-COPY tools/docker/php/fpm.conf /usr/local/etc/php-fpm.d/zzz-camagru.conf
-COPY tools/docker/mail/msmtprc /etc/msmtprc
-COPY tools/docker/nginx/nginx.conf /etc/nginx/nginx.conf
-COPY tools/docker/start-web.sh /usr/local/bin/start-web
+COPY docker/php/php.ini /usr/local/etc/php/conf.d/camagru.ini
+COPY docker/php/fpm.conf /usr/local/etc/php-fpm.d/zzz-camagru.conf
+COPY docker/mail/msmtprc /etc/msmtprc
+COPY docker/nginx/nginx.conf /etc/nginx/nginx.conf
+COPY docker/start-web.sh /usr/local/bin/start-web
 COPY . .
 RUN chmod +x /usr/local/bin/start-web \
     && mkdir -p storage/media storage/tmp storage/sessions storage/logs \

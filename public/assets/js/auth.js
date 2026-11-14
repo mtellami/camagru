@@ -1,3 +1,4 @@
+/** Attach password visibility controls and account-form validation feedback. */
 export function initAuth() {
     document.addEventListener('click', function (event) {
         const toggle = event.target.closest('.password-visibility');
@@ -17,6 +18,7 @@ export function initAuth() {
         const authForm = authRules.closest('form');
         const authPassword = authForm.elements.password;
         const authConfirmation = authForm.elements.confirmation;
+        /** Update rule feedback and allow submission only when both passwords are valid. */
         function checkAuthPassword() {
             const value = authPassword.value;
             const length = Array.from(value).length;
@@ -46,12 +48,4 @@ export function initAuth() {
         window.addEventListener('pageshow', checkAuthPassword);
         checkAuthPassword();
     }
-    document.querySelectorAll('.settings-sidebar nav a').forEach(function (link) {
-        link.addEventListener('click', function () {
-            document.querySelectorAll('.settings-sidebar nav a').forEach(function (item) {
-                item.removeAttribute('aria-current');
-            });
-            link.setAttribute('aria-current', 'location');
-        });
-    });
 }

@@ -9,11 +9,13 @@ use Camagru\Config;
 
 final class Http
 {
+    /** Check whether the caller expects JSON instead of a rendered page. */
     public static function jsonRequested(): bool
     {
         return str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json');
     }
 
+    /** Send a JSON response with the given status and stop the request. */
     public static function json(array $payload, int $status = 200): never
     {
         http_response_code($status);
@@ -22,6 +24,7 @@ final class Http
         exit();
     }
 
+    /** Send a local 303 redirect, rejecting unsafe destinations. */
     public static function redirect(string $path): never
     {
         if (
@@ -35,6 +38,7 @@ final class Http
         exit();
     }
 
+    /** Return JSON to AJAX callers or flash a message and redirect a form submission. */
     public static function success(
         string $message,
         string $path,
@@ -54,6 +58,7 @@ final class Http
         self::redirect($path);
     }
 
+    /** Render a page template inside the shared layout and stop the request. */
     public static function render(string $template, array $data = [], int $status = 200): never
     {
         http_response_code($status);
@@ -63,17 +68,19 @@ final class Http
         $flash = $_SESSION['flash'] ?? null;
         unset($_SESSION['flash']);
         ob_start();
-        require Config::root() . '/src/views/' . $template . '.php';
+        require Config::root() . '/src/Views/' . $template . '.php';
         $content = ob_get_clean();
-        require Config::root() . '/src/views/layout.php';
+        require Config::root() . '/src/Views/layout.php';
         exit();
     }
 
+    /** Escape a value for safe insertion into HTML text or attributes. */
     public static function escape(mixed $value): string
     {
         return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
+    /** Apply the shared browser security and cache policies. */
     public static function headers(): void
     {
         header(
@@ -86,6 +93,7 @@ final class Http
         header('Cache-Control: no-store');
     }
 
+    /** Read a scalar POST field, rejecting array-shaped form values. */
     public static function input(string $key): string
     {
         $value = $_POST[$key] ?? '';

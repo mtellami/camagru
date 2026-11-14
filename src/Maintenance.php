@@ -6,10 +6,11 @@ namespace Camagru;
 
 use Camagru\Database\Database;
 use Camagru\Mail\Outbox;
-use Camagru\Media\Images;
+use Camagru\Media\PhotoPublisher;
 
 final class Maintenance
 {
+    /** Process a bounded mail batch and serialize cleanup during request shutdown. */
     public static function run(): void
     {
         try {
@@ -21,7 +22,7 @@ final class Maintenance
                 if (!Database::query('SELECT pg_try_advisory_xact_lock(4298043)')->fetchColumn()) {
                     return;
                 }
-                Images::cleanup();
+                PhotoPublisher::cleanup();
                 Database::query('DELETE FROM rate_limits WHERE expires_at<NOW()');
                 Database::query(
                     "DELETE FROM account_tokens WHERE expires_at<NOW()-INTERVAL '1 day'",

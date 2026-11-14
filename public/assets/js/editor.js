@@ -5,6 +5,7 @@ import { element, svgIcon } from './dom.js';
 import { createPhotoCard } from './gallery.js';
 import { captureFrame } from './camera.js';
 
+/** Attach camera, uploads, stickers, previews, and publishing to the editor page. */
 export function initEditor() {
     if (!document.getElementById('editor')) {
         return;
@@ -37,6 +38,7 @@ export function initEditor() {
     let cameraUrl = null;
     let cameraGeneration = 0;
 
+    /** Stop GIF preview playback and reset the play button. */
     function stopFramePreview() {
         window.clearInterval(frameTimer);
         frameTimer = null;
@@ -45,6 +47,7 @@ export function initEditor() {
         play.setAttribute('aria-label', 'Play frame preview');
         play.replaceChildren(svgIcon(icons.play));
     }
+    /** Switch between photo and GIF controls and refresh enabled actions. */
     function setStudioMode(mode) {
         const gif = mode === 'gif';
         studio.classList.toggle('is-gif', gif);
@@ -86,6 +89,7 @@ export function initEditor() {
             studio.querySelector('[data-studio-mode="' + mode + '"]').focus();
         });
     });
+    /** Show one GIF frame and update its selection in the thumbnail strip. */
     function selectGifFrame(index) {
         frameIndex = index;
         gifFramePreview.src = frameUrls[index];
@@ -94,6 +98,7 @@ export function initEditor() {
             button.setAttribute('aria-pressed', i === index ? 'true' : 'false');
         });
     }
+    /** Release preview URLs and reset the selected GIF sequence. */
     function clearGifPreviews() {
         stopFramePreview();
         gifFrames = [];
@@ -128,6 +133,7 @@ export function initEditor() {
             selectGifFrame((frameIndex + 1) % frameUrls.length);
         }, 250);
     });
+    /** Refresh available actions from the source, mode, frames, and recording state. */
     function ready() {
         capture.disabled = recording || !source;
         modeTabs.forEach(function (tab) {
@@ -155,6 +161,7 @@ export function initEditor() {
             recording || !(gifFrames.length >= 2 && gifFrames.length <= 8);
         document.getElementById('gif-create-hint').hidden = gifFrames.length >= 2 || recording;
     }
+    /** Stop media tracks and invalidate any pending camera permission response. */
     function stopCamera() {
         cameraGeneration++;
         if (stream) {
@@ -195,6 +202,7 @@ export function initEditor() {
             document.getElementById('start-camera').click();
         }
     });
+    /** Explain camera failure and refresh controls so uploads remain available. */
     function cameraFailure() {
         cameraStatus.textContent =
             'Camera unavailable or permission denied. You can upload a photo instead.';
@@ -206,6 +214,7 @@ export function initEditor() {
         cameraStatus.classList.remove('is-visible');
         const generation = cameraGeneration;
         cameraStatus.textContent = 'Waiting for camera permission…';
+        /** Accept a camera stream only if its permission request is still current. */
         function success(media) {
             if (generation !== cameraGeneration) {
                 media.getTracks().forEach(function (track) {
@@ -289,6 +298,7 @@ export function initEditor() {
     });
     const stickerInputs = form.querySelectorAll('input[name="overlay[]"]');
     const clearStickers = document.getElementById('clear-stickers');
+    /** Rebuild preview layers and selected sticker labels in picker order. */
     function updateStickers() {
         overlays = [];
         const names = [];
@@ -320,6 +330,7 @@ export function initEditor() {
         });
         updateStickers();
     });
+    /** Add the selected sticker IDs to an outgoing multipart payload. */
     function appendStickers(data) {
         overlays.forEach(function (overlay) {
             data.append('overlay[]', overlay);
@@ -358,6 +369,7 @@ export function initEditor() {
         status(gifForm, '', false);
         showGifFrames(files);
     });
+    /** Build thumbnails and preview URLs for an uploaded or captured frame sequence. */
     function showGifFrames(files) {
         clearGifPreviews();
         gifFrames = files;
@@ -386,6 +398,7 @@ export function initEditor() {
     }
     window.addEventListener('pagehide', clearGifPreviews);
     ready();
+    /** Publish media and update personal history after a successful response. */
     function sendCapture(targetForm, data) {
         request(targetForm.action, 'POST', data, function (error, result) {
             busy(targetForm, false);
@@ -464,6 +477,7 @@ export function initEditor() {
         ready();
         const frames = [];
         const chosenOverlays = overlays.join(',');
+        /** Capture the next burst frame or finish the eight-frame sequence. */
         function next() {
             status(gifForm, 'Recording frame ' + (frames.length + 1) + ' of 8…', false);
             captureFrame(video, 480, 360, function (blob) {

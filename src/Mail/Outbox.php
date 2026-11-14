@@ -9,6 +9,7 @@ use Camagru\Database\Database;
 
 final class Outbox
 {
+    /** Validate and decode the application key used to encrypt queued mail. */
     private static function key(): string
     {
         $hex = Config::get('APP_KEY');
@@ -18,6 +19,7 @@ final class Outbox
         return hex2bin($hex);
     }
 
+    /** Encrypt a mail payload with a fresh sodium secretbox nonce. */
     public static function encrypt(array $data): string
     {
         $nonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
@@ -31,6 +33,7 @@ final class Outbox
         );
     }
 
+    /** Authenticate and decode a previously encrypted mail payload. */
     public static function decrypt(string $payload): array
     {
         $binary = base64_decode($payload, true);
@@ -51,6 +54,7 @@ final class Outbox
         return json_decode($plain, true, 512, JSON_THROW_ON_ERROR);
     }
 
+    /** Insert one encrypted delivery job per unique event key. */
     public static function queue(
         string $event,
         int $userId,
@@ -72,6 +76,7 @@ final class Outbox
         );
     }
 
+    /** Lease one due job, send eligible mail, and record success or retry state. */
     public static function once(): bool
     {
         $job = Database::transaction(static function () {

@@ -3,6 +3,7 @@ import { token, request } from './api.js';
 import { notify } from './ui.js';
 import { element, svgIcon } from './dom.js';
 
+/** Build a gallery card or a compact editor-history thumbnail. */
 export function createPhotoCard(photo, history) {
     const link = element('a', history ? 'history-item' : 'photo-link');
     link.href = '/photos/' + photo.id;
@@ -61,9 +62,11 @@ export function createPhotoCard(photo, history) {
     return article;
 }
 
+/** Attach cursor-based loading to gallery and personal-history controls. */
 export function initGallery() {
     const feeds = document.querySelectorAll('.load-more');
     feeds.forEach(function (button) {
+        /** Fetch the next batch, append unseen photos, and advance the cursor. */
         function load() {
             if (button.disabled || button.hidden) {
                 return;

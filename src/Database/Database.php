@@ -12,11 +12,13 @@ final class Database
 {
     private static ?PDO $connection = null;
 
+    /** Release the cached PDO connection. */
     public static function disconnect(): void
     {
         self::$connection = null;
     }
 
+    /** Lazily open one PostgreSQL connection with native prepared statements. */
     public static function connection(): PDO
     {
         return self::$connection ??= new PDO(
@@ -36,6 +38,7 @@ final class Database
         );
     }
 
+    /** Execute a parameterized statement and return its result cursor. */
     public static function query(string $sql, array $parameters = []): \PDOStatement
     {
         $statement = self::connection()->prepare($sql);
@@ -43,6 +46,7 @@ final class Database
         return $statement;
     }
 
+    /** Commit the callback result or roll back and rethrow its failure. */
     public static function transaction(callable $callback): mixed
     {
         $db = self::connection();
