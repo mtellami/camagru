@@ -135,7 +135,7 @@ sequenceDiagram
     API->>App: POST /photos or /photos/gif + CSRF
     App->>App: Check CSRF, login, rate limit, overlays
     App->>Images: publish(userId, overlays, submission, gif)
-    Images->>DB: Check submission key; insert staging photo
+    Images->>DB: Check submission key and insert staging photo
     loop Each input image
         Images->>Images: Validate, decode, orient, crop, composite stickers
         Images->>Disk: First frame: JPEG poster and thumbnail
@@ -201,7 +201,7 @@ sequenceDiagram
     participant Inbox as Mailpit
     User->>UI: Submit registration form
     UI->>App: POST /register + CSRF
-    App->>Auth: Rate limit and validate input; hash password
+    App->>Auth: Rate limit, validate input, and hash password
     App->>DB: Transaction: insert unverified user
     App->>Auth: token(userId, verify)
     Auth->>DB: Store SHA-256 token hash and expiry
@@ -216,7 +216,7 @@ sequenceDiagram
     App->>Auth: consume(): lock and validate token, mark consumed
     Auth->>DB: Set verified_at in same transaction
     User->>App: POST /login
-    App->>Auth: Verify password and confirmed account; login()
+    App->>Auth: Verify password and confirmed account, then login()
     Auth->>Auth: Regenerate session ID and CSRF token
     App-->>User: Redirect to editor
 ```
